@@ -18,7 +18,6 @@ def stop_task(task_id):
     except Exception as e:
         logger.error(f"Не удалось остановить задачу {task_id}: {e}")
 
-
 @celery_app.task(bind=True, max_retries=5, default_retry_delay=60)
 def schedule_stop_previous_instance(self, parser_name, previous_task_id):
     """
@@ -29,17 +28,13 @@ def schedule_stop_previous_instance(self, parser_name, previous_task_id):
     :param previous_task_id: ID предыдущего таска парсера.
     """
     try:
-        logger.info(
-            f"Запланирована остановка предыдущей задачи {previous_task_id} для парсера {parser_name} через {PARSER_TIMEOUT} секунд.")
+        logger.info(f"Запланирована остановка предыдущей задачи {previous_task_id} для парсера {parser_name} через {PARSER_TIMEOUT} секунд.")
         time.sleep(PARSER_TIMEOUT)
         stop_task(previous_task_id)
-        logger.info(
-            f"Предыдущая задача {previous_task_id} для парсера {parser_name} остановлена.")
+        logger.info(f"Предыдущая задача {previous_task_id} для парсера {parser_name} остановлена.")
     except Exception as e:
-        logger.error(
-            f"Ошибка при остановке предыдущего инстанса парсера {parser_name}: {e}")
+        logger.error(f"Ошибка при остановке предыдущего инстанса парсера {parser_name}: {e}")
         self.retry(exc=e)
-
 
 @celery_app.task(bind=True, max_retries=5, default_retry_delay=60)
 def parse_some_data(self, parser_name, *args, **kwargs):
@@ -63,30 +58,35 @@ def parse_some_data(self, parser_name, *args, **kwargs):
         previous_task_id = redis_client.get(f"active_parser_{parser_name}")
         if previous_task_id:
             previous_task_id = previous_task_id.decode()
-            logger.info(
-                f"Найдена предыдущая задача {previous_task_id} для парсера {parser_name}, планируется остановка.")
+            if redis_client.exists(f"active_parser_{parser_name}_running"):
+                logger.info(f"Активная задача {previous_task_id} для парсера {parser_name} уже выполняется, отмена запуска новой задачи.")
+                return
+            logger.info(f"Найдена предыдущая задача {previous_task_id} для парсера {parser_name}, планируется остановка.")
             # Запускаем таск для остановки предыдущего инстанса через минуту
-            schedule_stop_previous_instance.apply_async(
-                (parser_name, previous_task_id), countdown=1)
+            schedule_stop_previous_instance.apply_async((parser_name, previous_task_id), countdown=1)
         else:
-            logger.info(
-                f"Предыдущая задача для парсера {parser_name} не найдена.")
+            logger.info(f"Предыдущая задача для парсера {parser_name} не найдена.")
+
+        # Создаем флаг выполнения задачи
+        redis_client.set(f"active_parser_{parser_name}_running", self.request.id, ex=60*10)
 
         # Создаем новый инстанс парсера и запускаем его
         parser = parser_class(*args, **kwargs)
         asyncio.run(parser.run())
-        logger.info(
-            f"Парсер {parser_name} с task_id {self.request.id} успешно завершен.")
+        logger.info(f"Парсер {parser_name} с task_id {self.request.id} успешно завершен.")
 
         # Сохраняем текущий task_id в Redis
         redis_client.set(f"active_parser_{parser_name}", self.request.id)
-        logger.info(
-            f"Установлена активная задача {self.request.id} для парсера {parser_name} в Redis.")
+        logger.info(f"Установлена активная задача {self.request.id} для парсера {parser_name} в Redis.")
+
+        # Удаляем флаг выполнения задачи
+        redis_client.delete(f"active_parser_{parser_name}_running")
 
     except urllib3.exceptions.ProtocolError as e:
-        logger.error(
-            f"Ошибка протокола при выполнении парсера {parser_name}: {e}")
+        logger.error(f"Ошибка протокола при выполнении парсера {parser_name}: {e}")
         self.retry(exc=e)
     except Exception as e:
         logger.error(f"Ошибка при выполнении парсера {parser_name}: {e}")
         self.retry(exc=e)
+    finally:
+        redis_client.delete(f"active_parser_{parser_name}_running")
