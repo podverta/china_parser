@@ -527,9 +527,9 @@ class FetchAkty:
                     leagues_data = await self.extract_league_data(
                         target_leagues
                     )
-                    await self.send_to_logs(
-                        f'Данные изменены: {leagues_data}'
-                    )
+                    # await self.send_to_logs(
+                    #     f'Данные изменены: {leagues_data}'
+                    # )
                     previous_hash = current_hash
                     await self.send_and_save_data(leagues_data)
                 except Exception:

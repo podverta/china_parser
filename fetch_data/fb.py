@@ -335,9 +335,9 @@ class OddsFetcher:
                                     odds_data['opponent_0']['total_bet'] = odds_items[0].text
                                     odds_data['opponent_1']['total_bet'] = odds_items[1].text
                         active_matches["fb.com"][liga_name_translate].append(odds_data)
-            await self.send_to_logs(
-                f"Данные обновлены: {active_matches}"
-            )
+            # await self.send_to_logs(
+            #     f"Данные обновлены: {active_matches}"
+            # )
             await self.send_and_save_data(active_matches)
 
         except Exception as e:
