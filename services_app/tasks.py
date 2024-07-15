@@ -8,7 +8,7 @@ from fetch_data.parsers import parsers
 
 redis_client = Redis.from_url(os.getenv('REDIS_URL'))
 
-PARSER_TIMEOUT = 60  # Таймаут для завершения старого инстанса
+PARSER_TIMEOUT = 1  # Таймаут для завершения старого инстанса
 
 
 @celery_app.task(bind=True, max_retries=5, default_retry_delay=60)
