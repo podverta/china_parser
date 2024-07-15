@@ -3,7 +3,8 @@ import sys
 from celery import Celery
 from celery.schedules import crontab
 from dotenv import load_dotenv
-from app.logging import setup_logger
+from redis import Redis
+from .logger import setup_logger
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
@@ -22,6 +23,7 @@ celery_app.autodiscover_tasks(['services_app'])
 # Настройка логирования
 logger = setup_logger('celery', 'celery.log')
 
+# Настройка расписания задач
 celery_app.conf.beat_schedule = {
     'run_fetch_akty': {
         'task': 'services_app.tasks.parse_some_data',
@@ -36,4 +38,5 @@ celery_app.conf.beat_schedule = {
 }
 celery_app.conf.timezone = 'UTC'
 
+# Инициализация Redis-клиента
 redis_client = Redis.from_url(os.getenv('REDIS_URL'))
