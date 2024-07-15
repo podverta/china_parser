@@ -9,7 +9,7 @@ from services_app.celery_app import celery_app, logger, redis_client
 from fetch_data.parsers import parsers
 
 
-PARSER_TIMEOUT = 1  # Таймаут для завершения старого инстанса
+PARSER_TIMEOUT = 60  # Таймаут для завершения старого инстанса
 
 
 from celery import current_app
