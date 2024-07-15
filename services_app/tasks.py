@@ -106,3 +106,4 @@ def check_and_start_parsers():
             parse_some_data.apply_async(args=(parser_name,))
         else:
             logger.info(f"Активная задача {active_task_id.decode()} для парсера {parser_name} найдена, запуск новой задачи не требуется.")
+
