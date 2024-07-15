@@ -12,22 +12,6 @@ from fetch_data.parsers import parsers
 PARSER_TIMEOUT = 60  # Таймаут для завершения старого инстанса
 
 
-from celery import current_app
-from redis import Redis
-import asyncio
-import time
-from .celery_app import celery_app, redis_client
-import urllib3
-import logging
-
-PARSER_TIMEOUT = 60  # Таймаут для завершения старого инстанса
-logger = logging.getLogger(__name__)
-
-parsers = {
-    'FetchAkty': FetchAkty,
-    'FB': OddsFetcher
-}
-
 def stop_task(task_id):
     try:
         current_app.control.revoke(task_id, terminate=True)
