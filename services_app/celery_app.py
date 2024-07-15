@@ -39,10 +39,6 @@ celery_app.conf.beat_schedule = {
         'task': 'services_app.tasks.check_and_start_parsers',
         'schedule': crontab(minute=0, hour='*'),  # Каждый час
     },
-    'check_and_start_parsers_initial': {
-        'task': 'services_app.tasks.check_and_start_parsers',
-        'schedule': crontab(minute=1, hour='0'),  # Один раз через минуту после старта Celery Beat
-    },
 }
 celery_app.conf.timezone = 'UTC'
 
@@ -50,9 +46,3 @@ celery_app.conf.timezone = 'UTC'
 # Инициализация Redis-клиента
 redis_url = os.getenv('REDIS_URL')
 redis_client = Redis.from_url(redis_url)
-
-@celeryd_after_setup.connect
-def setup_periodic_tasks(sender, **kwargs):
-    # Удаление временного планировщика после первого запуска
-    celery_app.conf.beat_schedule.pop('check_and_start_parsers_initial', None)
-    logger.info("Удаление временного планировщика check_and_start_parsers_initial после первого запуска.")
