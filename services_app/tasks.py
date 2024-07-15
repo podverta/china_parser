@@ -93,8 +93,8 @@ def parse_some_data(self, parser_name, *args, **kwargs):
         # Удаление метаданных задачи
         clear_task_metadata(self.request.id)
 
-@celery_app.task(bind=True)
-def check_and_start_parsers(self):
+@celery_app.task
+def check_and_start_parsers():
     """
     Проверяет активные задачи парсеров и запускает их, если они не работают.
     """
@@ -106,9 +106,4 @@ def check_and_start_parsers(self):
             parse_some_data.apply_async(args=(parser_name,))
         else:
             logger.info(f"Активная задача {active_task_id.decode()} для парсера {parser_name} найдена, запуск новой задачи не требуется.")
-
-    # Если это первый запуск, планируем следующий через минуту
-    if not self.request.retries:
-        logger.info("Первый запуск задачи check_and_start_parsers. Планирование повторного запуска через минуту.")
-        self.apply_async(countdown=60)
 
