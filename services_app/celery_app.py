@@ -35,9 +35,20 @@ celery_app.conf.beat_schedule = {
         'schedule': crontab(minute=1, hour='*/6'),
         'args': ('FB',),
     },
+    'check_and_start_parsers': {
+        'task': 'services_app.tasks.check_and_start_parsers',
+        'schedule': crontab(minute=0, hour='*'),  # Каждый час
+    },
 }
 celery_app.conf.timezone = 'UTC'
+
 
 # Инициализация Redis-клиента
 redis_url = os.getenv('REDIS_URL')
 redis_client = Redis.from_url(redis_url)
+
+@celeryd_after_setup.connect
+def setup_periodic_tasks(sender, **kwargs):
+    # Запуск задачи check_and_start_parsers через минуту после старта
+    celery_app.send_task('services_app.tasks.check_and_start_parsers', countdown=60)
+    logger.info("Запуск задачи check_and_start_parsers через минуту после старта Celery Beat.")

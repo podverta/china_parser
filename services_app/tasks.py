@@ -92,3 +92,17 @@ def parse_some_data(self, parser_name, *args, **kwargs):
     finally:
         # Удаление метаданных задачи
         clear_task_metadata(self.request.id)
+
+@celery_app.task
+def check_and_start_parsers():
+    """
+    Проверяет активные задачи парсеров и запускает их, если они не работают.
+    """
+    logger.info("Запуск проверки активных задач парсеров.")
+    for parser_name in parsers.keys():
+        active_task_id = redis_client.get(f"active_parser_{parser_name}")
+        if not active_task_id:
+            logger.info(f"Активная задача для парсера {parser_name} не найдена, запуск новой задачи.")
+            parse_some_data.apply_async(args=(parser_name,))
+        else:
+            logger.info(f"Активная задача {active_task_id.decode()} для парсера {parser_name} найдена, запуск новой задачи не требуется.")
