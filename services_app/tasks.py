@@ -94,7 +94,7 @@ def parse_some_data(self, parser_name, *args, **kwargs):
         clear_task_metadata(self.request.id)
 
 @celery_app.task
-def check_and_start_parsers():
+def check_and_start_parsers(is_first_run: bool = False):
     """
     Проверяет активные задачи парсеров и запускает их, если они не работают.
     """
@@ -102,7 +102,7 @@ def check_and_start_parsers():
     for parser_name in parsers.keys():
 
         active_task_id = redis_client.get(f"active_parser_{parser_name}")
-        if not active_task_id:
+        if not active_task_id or is_first_run:
             logger.info(f"Активная задача для парсера {parser_name} не найдена, запуск новой задачи через 30 секунд.")
             time.sleep(30)
             parse_some_data.apply_async(args=(parser_name,))
