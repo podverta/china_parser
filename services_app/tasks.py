@@ -12,12 +12,36 @@ from fetch_data.parsers import parsers
 PARSER_TIMEOUT = 1  # Таймаут для завершения старого инстанса
 
 
+from celery import current_app
+from redis import Redis
+import asyncio
+import time
+from .celery_app import celery_app, redis_client
+import urllib3
+import logging
+
+PARSER_TIMEOUT = 60  # Таймаут для завершения старого инстанса
+logger = logging.getLogger(__name__)
+
+parsers = {
+    'FetchAkty': FetchAkty,
+    'FB': OddsFetcher
+}
+
 def stop_task(task_id):
     try:
         current_app.control.revoke(task_id, terminate=True)
         logger.info(f"Задача {task_id} была остановлена.")
     except Exception as e:
         logger.error(f"Не удалось остановить задачу {task_id}: {e}")
+
+def clear_task_metadata(task_id):
+    try:
+        celery_result = current_app.AsyncResult(task_id)
+        celery_result.forget()
+        logger.info(f"Метаданные задачи {task_id} удалены.")
+    except Exception as e:
+        logger.error(f"Не удалось удалить метаданные задачи {task_id}: {e}")
 
 @celery_app.task(bind=True, max_retries=5, default_retry_delay=60)
 def schedule_stop_previous_instance(self, parser_name, previous_task_id):
@@ -32,6 +56,7 @@ def schedule_stop_previous_instance(self, parser_name, previous_task_id):
         logger.info(f"Запланирована остановка предыдущей задачи {previous_task_id} для парсера {parser_name} через {PARSER_TIMEOUT} секунд.")
         time.sleep(PARSER_TIMEOUT)
         stop_task(previous_task_id)
+        clear_task_metadata(previous_task_id)
         logger.info(f"Предыдущая задача {previous_task_id} для парсера {parser_name} остановлена.")
     except Exception as e:
         logger.error(f"Ошибка при остановке предыдущего инстанса парсера {parser_name}: {e}")
@@ -80,3 +105,6 @@ def parse_some_data(self, parser_name, *args, **kwargs):
     except Exception as e:
         logger.error(f"Ошибка при выполнении парсера {parser_name}: {e}")
         self.retry(exc=e)
+    finally:
+        # Удаление метаданных задачи
+        clear_task_metadata(self.request.id)
