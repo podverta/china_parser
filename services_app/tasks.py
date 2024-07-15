@@ -11,6 +11,13 @@ redis_client = Redis.from_url(os.getenv('REDIS_URL'))
 PARSER_TIMEOUT = 1  # Таймаут для завершения старого инстанса
 
 
+def stop_task(task_id):
+    try:
+        current_app.control.revoke(task_id, terminate=True)
+        logger.info(f"Task {task_id} was revoked.")
+    except Exception as e:
+        logger.error(f"Failed to stop task {task_id}: {e}")
+
 @celery_app.task(bind=True, max_retries=5, default_retry_delay=60)
 def schedule_stop_previous_instance(self, parser_name, previous_task_id):
     """
@@ -22,12 +29,10 @@ def schedule_stop_previous_instance(self, parser_name, previous_task_id):
     """
     try:
         time.sleep(PARSER_TIMEOUT)
-        current_app.control.revoke(previous_task_id, terminate=True)
-        logger.info(f"Previous instance of parser {parser_name} with task_id {previous_task_id} stopped.")
+        stop_task(previous_task_id)
     except Exception as e:
         logger.error(f"Ошибка при остановке предыдущего инстанса парсера {parser_name}: {e}")
         self.retry(exc=e)
-
 
 @celery_app.task(bind=True, max_retries=5, default_retry_delay=60)
 def parse_some_data(self, parser_name, *args, **kwargs):
@@ -58,6 +63,9 @@ def parse_some_data(self, parser_name, *args, **kwargs):
         # Сохраняем текущий task_id в Redis
         redis_client.set(f"active_parser_{parser_name}", self.request.id)
 
+    except urllib3.exceptions.ProtocolError as e:
+        logger.error(f"Protocol error during execution of parser {parser_name}: {e}")
+        self.retry(exc=e)
     except Exception as e:
         logger.error(f"Ошибка при выполнении парсера {parser_name}: {e}")
         self.retry(exc=e)
