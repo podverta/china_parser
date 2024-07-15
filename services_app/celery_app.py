@@ -4,7 +4,7 @@ from celery import Celery
 from celery.schedules import crontab
 from dotenv import load_dotenv
 from redis import Redis
-from .logger import setup_logger
+from app.logging import setup_logger
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
