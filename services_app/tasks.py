@@ -104,7 +104,6 @@ def check_and_start_parsers(is_first_run: bool = False):
         active_task_id = redis_client.get(f"active_parser_{parser_name}")
         if not active_task_id or is_first_run:
             logger.info(f"Активная задача для парсера {parser_name} не найдена, запуск новой задачи через 30 секунд.")
-            time.sleep(30)
             parse_some_data.apply_async(args=(parser_name,))
         else:
             logger.info(f"Активная задача {active_task_id.decode()} для парсера {parser_name} найдена, запуск новой задачи не требуется.")
