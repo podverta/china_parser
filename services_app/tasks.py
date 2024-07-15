@@ -1,10 +1,15 @@
 import os
 import asyncio
 import time
+from dotenv import load_dotenv
 from redis import Redis
 from celery import current_app
 from services_app.celery_app import celery_app, logger
 from fetch_data.parsers import parsers
+
+
+# Загрузка переменных окружения из .env файла
+load_dotenv()
 
 redis_client = Redis.from_url(os.getenv('REDIS_URL'))
 
