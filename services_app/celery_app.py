@@ -39,4 +39,5 @@ celery_app.conf.beat_schedule = {
 celery_app.conf.timezone = 'UTC'
 
 # Инициализация Redis-клиента
-redis_client = Redis.from_url(os.getenv('REDIS_URL'))
+redis_url = os.getenv('REDIS_URL')
+redis_client = Redis.from_url(redis_url)
