@@ -45,9 +45,19 @@ def parse_some_data(self, parser_name, *args, **kwargs):
         if not parser_class:
             raise ValueError(f"Парсер с именем {parser_name} не найден")
 
-        # Создаем экземпляр парсера и запускаем его
+        # Остановка предыдущего инстанса
+        previous_task_id = redis_client.get(f"active_parser_{parser_name}")
+        if previous_task_id:
+            # Запускаем таск для остановки предыдущего инстанса через минуту
+            schedule_stop_previous_instance.apply_async((parser_name, previous_task_id.decode()), countdown=60)
+
+        # Создаем новый инстанс парсера и запускаем его
         parser = parser_class(*args, **kwargs)
         asyncio.run(parser.run())
+
+        # Сохраняем текущий task_id в Redis
+        redis_client.set(f"active_parser_{parser_name}", self.request.id)
+
     except Exception as e:
         logger.error(f"Ошибка при выполнении парсера {parser_name}: {e}")
         self.retry(exc=e)
