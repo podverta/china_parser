@@ -54,33 +54,24 @@ def parse_some_data(self, parser_name, *args, **kwargs):
         if not parser_class:
             raise ValueError(f"Парсер с именем {parser_name} не найден")
 
-        # Остановка предыдущего инстанса
+        # Остановка предыдущего инстанса, если он существует
         previous_task_id = redis_client.get(f"active_parser_{parser_name}")
         if previous_task_id:
             previous_task_id = previous_task_id.decode()
-            if redis_client.exists(f"active_parser_{parser_name}_running"):
-                logger.info(f"Активная задача {previous_task_id} для парсера {parser_name} уже выполняется, отмена запуска новой задачи.")
-                return
             logger.info(f"Найдена предыдущая задача {previous_task_id} для парсера {parser_name}, планируется остановка.")
             # Запускаем таск для остановки предыдущего инстанса через минуту
-            schedule_stop_previous_instance.apply_async((parser_name, previous_task_id), countdown=1)
+            schedule_stop_previous_instance.apply_async((parser_name, previous_task_id), countdown=60)
         else:
             logger.info(f"Предыдущая задача для парсера {parser_name} не найдена.")
 
-        # Создаем флаг выполнения задачи
-        redis_client.set(f"active_parser_{parser_name}_running", self.request.id, ex=60*10)
+        # Сохраняем текущий task_id в Redis сразу
+        redis_client.set(f"active_parser_{parser_name}", self.request.id)
+        logger.info(f"Установлена активная задача {self.request.id} для парсера {parser_name} в Redis.")
 
         # Создаем новый инстанс парсера и запускаем его
         parser = parser_class(*args, **kwargs)
         asyncio.run(parser.run())
         logger.info(f"Парсер {parser_name} с task_id {self.request.id} успешно завершен.")
-
-        # Сохраняем текущий task_id в Redis
-        redis_client.set(f"active_parser_{parser_name}", self.request.id)
-        logger.info(f"Установлена активная задача {self.request.id} для парсера {parser_name} в Redis.")
-
-        # Удаляем флаг выполнения задачи
-        redis_client.delete(f"active_parser_{parser_name}_running")
 
     except urllib3.exceptions.ProtocolError as e:
         logger.error(f"Ошибка протокола при выполнении парсера {parser_name}: {e}")
@@ -88,5 +79,3 @@ def parse_some_data(self, parser_name, *args, **kwargs):
     except Exception as e:
         logger.error(f"Ошибка при выполнении парсера {parser_name}: {e}")
         self.retry(exc=e)
-    finally:
-        redis_client.delete(f"active_parser_{parser_name}_running")
