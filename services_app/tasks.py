@@ -1,6 +1,7 @@
 import os
 import asyncio
 import time
+import urllib3
 from dotenv import load_dotenv
 from redis import Redis
 from celery import current_app
