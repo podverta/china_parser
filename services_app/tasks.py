@@ -77,6 +77,9 @@ def parse_some_data(self, parser_name, *args, **kwargs):
         else:
             logger.info(f"Предыдущая задача для парсера {parser_name} не найдена.")
 
+        # Удаление is_first_run из kwargs перед созданием парсера
+        kwargs.pop('is_first_run', None)
+
         # Сохраняем текущий task_id в Redis сразу
         redis_client.set(f"active_parser_{parser_name}", self.request.id)
         logger.info(f"Установлена активная задача {self.request.id} для парсера {parser_name} в Redis.")
@@ -106,6 +109,7 @@ def check_and_start_parsers(is_first_run: bool = False):
         active_task_id = redis_client.get(f"active_parser_{parser_name}")
         if not active_task_id or is_first_run:
             logger.info(f"Активная задача для парсера {parser_name} не найдена, запуск новой задачи через 30 секунд.")
+            time.sleep(30)
             parse_some_data.apply_async(args=(parser_name,), kwargs={'is_first_run': is_first_run})
         else:
             logger.info(f"Активная задача {active_task_id.decode()} для парсера {parser_name} найдена, запуск новой задачи не требуется.")
