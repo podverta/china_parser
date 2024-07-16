@@ -39,7 +39,8 @@ celery_app.conf.beat_schedule = {
     },
     'check_and_start_parsers': {
         'task': 'services_app.tasks.check_and_start_parsers',
-        'schedule': crontab(minute=0, hour='*'),  # Каждый час
+        'schedule': crontab(minute='*/11', hour='*'),  # Каждый час
+        # 'schedule': crontab(minute=0, hour='*'),  # Каждый час
     },
 }
 celery_app.conf.timezone = 'UTC'
