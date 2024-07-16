@@ -541,6 +541,16 @@ class FetchAkty:
                     "Данные не изменились."
                 )
 
+    async def close(self):
+        if self.driver:
+            self.driver.quit()
+            await self.send_to_logs("Драйвер был закрыт принудительно")
+
+    def __del__(self):
+        if self.driver:
+            self.driver.quit()
+            print("Драйвер закрыт")
+
     async def run(
             self,
             *args,
@@ -561,6 +571,7 @@ class FetchAkty:
         await self.main_page()
         await self.aggregator_page()
         await self.monitor_leagues(leagues)
+
 
 
 if __name__ == "__main__":

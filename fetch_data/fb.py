@@ -343,6 +343,16 @@ class OddsFetcher:
         except Exception as e:
             await self.send_to_logs(f"Произошла ошибка: {str(e)}")
 
+    async def close(self):
+        if self.driver:
+            self.driver.quit()
+            await self.send_to_logs("Драйвер был закрыт принудительно")
+
+    def __del__(self):
+        if self.driver:
+            self.driver.quit()
+            print("Драйвер закрыт")
+
     async def run(
             self,
             *args,

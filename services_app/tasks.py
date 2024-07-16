@@ -74,6 +74,7 @@ def parse_some_data(self, parser_name, *args, **kwargs):
     :param args: Позиционные аргументы для инициализации парсера.
     :param kwargs: Именованные аргументы для инициализации парсера.
     """
+    parser = None
     try:
         logger.info(f"Запуск парсера {parser_name} с task_id {self.request.id}")
 
@@ -122,6 +123,8 @@ def parse_some_data(self, parser_name, *args, **kwargs):
         logger.error(f"Ошибка при выполнении парсера {parser_name}: {e}")
         self.retry(exc=e)
     finally:
+        if parser:
+            asyncio.run(parser.close())
         # Удаление метаданных задачи
         clear_task_metadata(self.request.id)
 
