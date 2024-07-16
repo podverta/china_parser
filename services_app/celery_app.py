@@ -27,20 +27,17 @@ logger = setup_logger('celery', 'celery.log')
 celery_app.conf.beat_schedule = {
     'run_fetch_akty': {
         'task': 'services_app.tasks.parse_some_data',
-        'schedule': crontab(minute='*/5'),
-        # 'schedule': crontab(minute=0, hour='*/6'),
+        'schedule': crontab(minute=0, hour='*/3'),
         'args': ('FetchAkty',),
     },
     'run_fb': {
         'task': 'services_app.tasks.parse_some_data',
-        'schedule': crontab(minute='*/6'),
-        # 'schedule': crontab(minute=1, hour='*/6'),
+        'schedule': crontab(minute=2, hour='*/3'),
         'args': ('FB',),
     },
     'check_and_start_parsers': {
         'task': 'services_app.tasks.check_and_start_parsers',
-        'schedule': crontab(minute='*/11', hour='*'),  # Каждый час
-        # 'schedule': crontab(minute=0, hour='*'),  # Каждый час
+        'schedule': crontab(minute=0, hour='*'),  # Каждый час
     },
 }
 celery_app.conf.timezone = 'UTC'
