@@ -68,9 +68,12 @@ def parse_some_data(self, parser_name, *args, **kwargs):
         previous_task_id = redis_client.get(f"active_parser_{parser_name}")
         if previous_task_id:
             previous_task_id = previous_task_id.decode()
-            logger.info(f"Найдена предыдущая задача {previous_task_id} для парсера {parser_name}, планируется остановка.")
-            # Запускаем таск для остановки предыдущего инстанса через минуту
-            schedule_stop_previous_instance.apply_async((parser_name, previous_task_id), countdown=60)
+            if previous_task_id != self.request.id and not kwargs.get('is_first_run', False):
+                logger.info(f"Найдена предыдущая задача {previous_task_id} для парсера {parser_name}, планируется остановка.")
+                # Запускаем таск для остановки предыдущего инстанса через минуту
+                schedule_stop_previous_instance.apply_async((parser_name, previous_task_id), countdown=60)
+            else:
+                logger.info(f"Первый запуск или совпадение идентификаторов, остановка предыдущей задачи {previous_task_id} для парсера {parser_name} не требуется.")
         else:
             logger.info(f"Предыдущая задача для парсера {parser_name} не найдена.")
 
@@ -102,13 +105,9 @@ def check_and_start_parsers(is_first_run: bool = False):
     for parser_name in parsers.keys():
         active_task_id = redis_client.get(f"active_parser_{parser_name}")
         if not active_task_id or is_first_run:
-            logger.info(f"Активная задача для парсера {parser_name} не найдена или первый запуск, запуск новой задачи через 30 секунд.")
-            time.sleep(30)
-            parse_some_data.apply_async(args=(parser_name,))
+            logger.info(f"Активная задача для парсера {parser_name} не найдена, запуск новой задачи через 30 секунд.")
+            parse_some_data.apply_async(args=(parser_name,), kwargs={'is_first_run': is_first_run})
         else:
             logger.info(f"Активная задача {active_task_id.decode()} для парсера {parser_name} найдена, запуск новой задачи не требуется.")
-
-    if is_first_run:
-        logger.info("Первый запуск завершен, больше задач остановки не будет.")
 
 
