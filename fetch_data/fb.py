@@ -63,15 +63,27 @@ class OddsFetcher:
         self.translate_cash = {}
         self.translator = Translator()
 
-    async def get_driver(self, headless: bool) -> webdriver.Chrome:
+    async def get_driver(self, headless: bool = False, retries: int = 3) -> uc.Chrome:
         """
         Инициализирует и возвращает WebDriver для браузера Chrome.
+
         :param headless: Запуск браузера в headless режиме.
+        :param retries: Количество попыток запуска WebDriver в случае ошибки.
         :return: WebDriver для браузера Chrome.
         """
         options = uc.ChromeOptions()
-        driver = uc.Chrome(options=options, headless=headless)
-        return driver
+        attempt = 0
+        while attempt < retries:
+            try:
+                driver = uc.Chrome(options=options, headless=headless)
+                return driver
+            except WebDriverException as e:
+                attempt += 1
+                logger.error(f"Ошибка при запуске драйвера"
+                             f" (попытка {attempt} из {retries}): {e}")
+                if attempt >= retries:
+                    raise e
+                await asyncio.sleep(5)  # Ожидание перед повторной попыткой
 
     async def get_url(self):
         """
