@@ -52,15 +52,18 @@ def schedule_stop_previous_instance(self, parser_name, previous_task_id):
     """
     try:
         logger.info(
-            f"Запланирована остановка предыдущей задачи {previous_task_id} для парсера {parser_name} через {PARSER_TIMEOUT} секунд.")
+            f"Запланирована остановка предыдущей задачи {previous_task_id} "
+            f"для парсера {parser_name} через {PARSER_TIMEOUT} секунд.")
         time.sleep(PARSER_TIMEOUT)
         stop_task(previous_task_id)
         clear_task_metadata(previous_task_id)
         logger.info(
-            f"Предыдущая задача {previous_task_id} для парсера {parser_name} остановлена.")
+            f"Предыдущая задача {previous_task_id} для парсера "
+            f"{parser_name} остановлена.")
     except Exception as e:
         logger.error(
-            f"Ошибка при остановке предыдущего инстанса парсера {parser_name}: {e}")
+            f"Ошибка при остановке предыдущего инстанса"
+            f" парсера {parser_name}: {e}")
         self.retry(exc=e)
 
 
@@ -90,13 +93,16 @@ def parse_some_data(self, parser_name, *args, **kwargs):
             if previous_task_id != self.request.id and not kwargs.get(
                     'is_first_run', False):
                 logger.info(
-                    f"Найдена предыдущая задача {previous_task_id} для парсера {parser_name}, планируется остановка.")
+                    f"Найдена предыдущая задача {previous_task_id} "
+                    f"для парсера {parser_name}, планируется остановка.")
                 # Запускаем таск для остановки предыдущего инстанса через минуту
                 schedule_stop_previous_instance.apply_async(
                     (parser_name, previous_task_id), countdown=60)
             else:
                 logger.info(
-                    f"Первый запуск или совпадение идентификаторов, остановка предыдущей задачи {previous_task_id} для парсера {parser_name} не требуется.")
+                    f"Первый запуск или совпадение идентификаторов, "
+                    f"остановка предыдущей задачи {previous_task_id} "
+                    f"для парсера {parser_name} не требуется.")
         else:
             logger.info(
                 f"Предыдущая задача для парсера {parser_name} не найдена.")
@@ -107,7 +113,8 @@ def parse_some_data(self, parser_name, *args, **kwargs):
         # Сохраняем текущий task_id в Redis сразу
         redis_client.set(f"active_parser_{parser_name}", self.request.id)
         logger.info(
-            f"Установлена активная задача {self.request.id} для парсера {parser_name} в Redis.")
+            f"Установлена активная задача {self.request.id} "
+            f"для парсера {parser_name} в Redis.")
 
         # Создаем новый инстанс парсера и запускаем его
         parser = parser_class(*args, **kwargs)
@@ -160,15 +167,18 @@ def check_and_start_parsers(is_first_run: bool = False):
             for task in parser_tasks[:-2]:
                 stop_task(task['id'])
                 logger.info(
-                    f"Старая задача {task['id']} для парсера {parser_name} была остановлена.")
+                    f"Старая задача {task['id']} для парсера"
+                    f" {parser_name} была остановлена.")
 
         active_task_id = redis_client.get(f"active_parser_{parser_name}")
         if not active_task_id or is_first_run:
             logger.info(
-                f"Активная задача для парсера {parser_name} не найдена, запуск новой задачи через 30 секунд.")
+                f"Активная задача для парсера {parser_name} не найдена, "
+                f"запуск новой задачи через 30 секунд.")
             time.sleep(30)
             parse_some_data.apply_async(args=(parser_name,),
                                         kwargs={'is_first_run': is_first_run})
         else:
             logger.info(
-                f"Активная задача {active_task_id.decode()} для парсера {parser_name} найдена, запуск новой задачи не требуется.")
+                f"Активная задача {active_task_id.decode()} для парсера "
+                f"{parser_name} найдена, запуск новой задачи не требуется.")
