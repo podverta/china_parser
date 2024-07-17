@@ -272,9 +272,9 @@ class FetchAkty:
             text, src='zh-cn',
             dest='ru'
         ).text
+        await self.send_to_logs(f"Перевод текста {text} - {translation}")
         self.translate_cash[text] = translation
         if self.debug:
-            await self.send_to_logs(f"Перевод текста {text} - {translation}")
             return translation
         self.translate_cash[text] = translation
         json_data = json.dumps(self.translate_cash, ensure_ascii=False)

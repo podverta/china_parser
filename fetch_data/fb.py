@@ -234,6 +234,7 @@ class OddsFetcher:
                 return translation
             json_data = json.dumps(self.translate_cash, ensure_ascii=False)
             await self.redis_client.set('translate_cash', json_data)
+            await self.send_to_logs(f"Перевод текста {text} - {translation}")
             return full_name_element
         return None
 
