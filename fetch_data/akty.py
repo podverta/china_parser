@@ -265,6 +265,9 @@ class FetchAkty:
 
         if text in self.translate_cash.keys():
             return self.translate_cash[text]
+        data_str = await self.redis_client.get('translate_cash')
+        if data_str:
+            self.translate_cash = json.loads(data_str.decode('utf-8'))
         translation = self.translator.translate(
             text, src='zh-cn',
             dest='ru'

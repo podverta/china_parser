@@ -208,7 +208,9 @@ class OddsFetcher:
             return self.translate_cash[short_name]
 
         time.sleep(1)  # Подождем, чтобы всплывающее окно появилось
-
+        data_str = await self.redis_client.get('translate_cash')
+        if data_str:
+            self.translate_cash = json.loads(data_str.decode('utf-8'))
         team1_element = self.driver.find_element(By.XPATH, f"//*[text()='{short_name}']")
         self.actions.move_to_element(team1_element).perform()
         time.sleep(2)  # Увеличиваем время ожидания
@@ -230,7 +232,6 @@ class OddsFetcher:
             self.translate_cash[short_name] = translation
             if self.debug:
                 return translation
-            print(f'short_name {short_name} full_name_element {translation}')
             json_data = json.dumps(self.translate_cash, ensure_ascii=False)
             await self.redis_client.set('translate_cash', json_data)
             return full_name_element
