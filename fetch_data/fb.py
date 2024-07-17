@@ -248,7 +248,6 @@ class OddsFetcher:
         active_matches = {"fb.com": {}}
 
         try:
-            time.sleep(1)
             html = self.driver.page_source
             soup = BeautifulSoup(html, 'html.parser')
             match_groups = soup.select('.home-match-list-box .group-matches')
