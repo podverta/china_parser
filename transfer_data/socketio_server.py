@@ -29,7 +29,6 @@ sio = socketio.AsyncServer(
 )
 app = socketio.ASGIApp(sio)
 
-connected_clients = set()
 
 async def send_to_logs(message: str):
     """
@@ -60,7 +59,7 @@ async def disconnect(sid: str):
 
     :param sid: Идентификатор сессии клиента.
     """
-    connected_clients.remove(sid)
+
     await send_to_logs(f"Клиент отключился: {sid}")
 
 @sio.on('message')
@@ -74,25 +73,3 @@ async def message(sid: str, data: str):
     await send_to_logs(f"Получено сообщение от {sid}: {data}")
     await sio.send(data)
 
-async def broadcast(data: str):
-    """
-    Отправка данных всем подключенным клиентам.
-
-    :param data: Данные для отправки.
-    """
-    await send_to_logs(f"Отправка данных {data} для {len(connected_clients)} клиентов")
-    await sio.emit('message', data)
-
-async def send_message(data: dict):
-    """
-    Отправка сообщения через Socket.IO.
-
-    :param data: Данные для отправки.
-    """
-    await send_to_logs("Подготовка к отправке данных на Socket.IO сервер...")
-    try:
-        json_data = json.dumps(data)
-        await sio.emit('message', json_data)
-        await send_to_logs("Данные отправлены на Socket.IO сервер")
-    except Exception as e:
-        await send_to_logs(f'Ошибка при отправке данных: {str(e)}')
