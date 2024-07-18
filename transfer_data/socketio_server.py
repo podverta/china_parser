@@ -42,11 +42,6 @@ async def connect(sid: str, environ: dict):
     :param sid: Идентификатор сессии клиента.
     :param environ: Среда окружения.
     """
-    origin = environ.get('HTTP_ORIGIN', '')
-    if origin not in origins:
-        await send_to_logs(f"Запрос отклонен из-за"
-                           f" неразрешенного источника: {origin}, {environ}")
-        return False  # Отклонить подключение
     await send_to_logs(f"Клиент подключился: {sid}, IP: {environ.get('REMOTE_ADDR')}")
 
 
