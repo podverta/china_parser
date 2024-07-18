@@ -48,8 +48,8 @@ async def connect(sid: str, environ: dict):
     :param sid: Идентификатор сессии клиента.
     :param environ: Среда окружения.
     """
-    connected_clients.add(sid)
-    await send_to_logs(f"Клиент подключился: {sid}")
+    ip_address = environ.get('REMOTE_ADDR')
+    await send_to_logs(f"Клиент подключился: {sid}, IP: {ip_address}")
 
 
 @sio.on('disconnect')
