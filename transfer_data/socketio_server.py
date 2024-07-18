@@ -10,12 +10,6 @@ load_dotenv()
 logger = setup_logger('socketio', 'socketio_debug.log')
 
 origins = [
-    "10.10.10.45",
-    "http://10.10.10.45",
-    "http://10.10.10.34",
-    "http://127.0.0.1",
-    "http://0.0.0.0",
-    "http://localhost",
     "http://parserbk.compas-pro.ru",
     "https://parserbk.compas-pro.ru",
 ]
