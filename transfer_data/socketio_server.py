@@ -42,8 +42,11 @@ async def connect(sid: str, environ: dict):
     :param sid: Идентификатор сессии клиента.
     :param environ: Среда окружения.
     """
-    ip_address = environ.get('REMOTE_ADDR')
-    await send_to_logs(f"Клиент подключился: {sid}, IP: {ip_address}")
+    origin = environ.get('HTTP_ORIGIN', '')
+    if origin not in origins:
+        await send_to_logs(f"Запрос отклонен из-за неразрешенного источника: {origin}")
+        return False  # Отклонить подключение
+    await send_to_logs(f"Клиент подключился: {sid}, IP: {environ.get('REMOTE_ADDR')}")
 
 
 @sio.on('disconnect')
