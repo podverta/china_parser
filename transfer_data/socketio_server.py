@@ -1,4 +1,4 @@
-import json
+import os
 import socketio
 from dotenv import load_dotenv
 from app.logging import setup_logger
@@ -21,7 +21,11 @@ sio = socketio.AsyncServer(
     namespaces='/socket.io',
     max_http_buffer_size=10 * 1024 * 1024  # 10 MB
 )
+
 app = socketio.ASGIApp(sio)
+
+# Предопределенные пароли
+SOCKET_KEY = os.getenv('SOCKET_KEY')
 
 
 async def send_to_logs(message: str):
@@ -34,16 +38,19 @@ async def send_to_logs(message: str):
     print(f"Logger: {message}")
 
 
-@sio.on('connect')
-async def connect(sid: str, environ: dict):
+@sio.event
+async def connect(sid: str, environ: dict, auth: dict):
     """
     Обработчик события подключения клиента.
 
     :param sid: Идентификатор сессии клиента.
     :param environ: Среда окружения.
+    :param auth: Данные для авторизации.
     """
-    await send_to_logs(f"Клиент подключился: {sid}, IP: {environ.get('REMOTE_ADDR')}")
-
+    if auth is None or 'socket_key' not in auth or auth['socket_key'] != SOCKET_KEY:
+        await send_to_logs(f"Неудачная попытка подключения: {sid}, {auth}")
+        return False  # Отклонить подключение
+    await send_to_logs(f"Клиент подключился: {sid}")
 
 @sio.on('disconnect')
 async def disconnect(sid: str):
