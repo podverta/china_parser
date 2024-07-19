@@ -31,6 +31,7 @@ LEAGUES = {
 LOCAL_DEBUG = 0
 REDIS_URL = os.getenv('REDIS_URL')
 SOCKETIO_URL = os.getenv('SOCKETIO_URL')
+SOCKET_KEY = os.getenv('SOCKET_KEY')
 HEADLESS = True
 
 # Настройка логгера
@@ -93,28 +94,29 @@ class OddsFetcher:
         await self.send_to_logs(
             f"Переход на главную страницу выыполнен {self.url}"
         )
-    async def send_and_save_data(
-            self,
-            data: dict,
-    ):
-        """
-        Отправка данных на Socket.IO сервер и сохранение в Redis.
 
-        :param data: Данные для отправки и сохранения.
+    async def init_async_components(self):
+        """
+        Инициализация асинхронных компонентов, таких как Redis клиент и подключение к Socket.IO.
         """
         if self.debug:
-            await self.send_to_logs(
-                "Режим отладки включен, данные не отправляются."
-            )
-            return
+            return None
         try:
-            json_data = json.dumps(data, ensure_ascii=False)
-            # Отправляем данные на Socket.IO сервер напрямую
-            await self.sio.emit('message', json_data)
-            # Сохраняем данные в Redis
-            await self.redis_client.set('akty_data', json_data)
+            await self.send_to_logs(
+                f"Connecting to Redis at {REDIS_URL}"
+            )
+            self.redis_client = await aioredis.from_url(REDIS_URL)
+            await self.send_to_logs(
+                f"Connecting to Socket.IO server at {SOCKETIO_URL}"
+            )
+            await self.sio.connect(SOCKETIO_URL,
+                                   auth={'socket_key': SOCKET_KEY})
+            data_str = await self.redis_client.get('translate_cash')
+            if data_str:
+                self.translate_cash = json.loads(data_str.decode('utf-8'))
         except Exception as e:
-            await self.send_to_logs(f'Ошибка при отправке данных: {str(e)}')
+            print(f"Error initializing async components: {e}")
+            raise
 
     async def init_async_components(
             self

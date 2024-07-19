@@ -40,6 +40,7 @@ PASSWORD = os.getenv('AKTY_PASSWORD')
 NAME_BOOKMAKER = 'akty.com'
 REDIS_URL = os.getenv('REDIS_URL')
 SOCKETIO_URL = os.getenv('SOCKETIO_URL')
+SOCKET_KEY = os.getenv('SOCKET_KEY')
 HEADLESS = True
 
 class FetchAkty:
@@ -89,9 +90,7 @@ class FetchAkty:
         except Exception as e:
             await self.send_to_logs(f'Ошибка при отправке данных: {str(e)}')
 
-    async def init_async_components(
-            self,
-    ):
+    async def init_async_components(self):
         """
         Инициализация асинхронных компонентов, таких как Redis клиент и подключение к Socket.IO.
         """
@@ -105,7 +104,8 @@ class FetchAkty:
             await self.send_to_logs(
                 f"Connecting to Socket.IO server at {SOCKETIO_URL}"
             )
-            await self.sio.connect(SOCKETIO_URL)
+            await self.sio.connect(SOCKETIO_URL,
+                                   auth={'socket_key': SOCKET_KEY})
             data_str = await self.redis_client.get('translate_cash')
             if data_str:
                 self.translate_cash = json.loads(data_str.decode('utf-8'))
