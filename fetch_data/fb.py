@@ -185,22 +185,24 @@ class OddsFetcher:
     ) -> None:
         max_attempts = 6
         attempt = 0
-        while attempt < max_attempts:
-            basketball_button = await self.wait_for_element(
-                By.CSS_SELECTOR,
-                '.ui-carousel-item.sport-type-item img[src="sport-svg/sport_id_3.svg"]',
-                timeout=30
-            )
-            if basketball_button:
-                basketball_button.click()
-                await self.send_to_logs('Успешный переход в баскетбольную лигу')
-                return
-            logger.info(
-                f"Внимание! Отсутствие контента на странице,"
-                f" Попытка {attempt + 1} из {max_attempts} получить контент.")
-            attempt += 1
-            await asyncio.sleep(
-                30)
+
+        basketball_button = await self.wait_for_element(
+            By.CSS_SELECTOR,
+            '.ui-carousel-item.sport-type-item img[src="sport-svg/sport_id_3.svg"]',
+            timeout=30
+        )
+        if basketball_button:
+            basketball_button.click()
+            await self.send_to_logs('Успешный переход в баскетбольную лигу')
+            return
+        logger.info(
+            f"Внимание! Отсутствие контента на странице,"
+            f" Попытка {attempt + 1} из {max_attempts} получить контент.")
+        attempt += 1
+        await asyncio.sleep(
+            10)
+        if attempt < max_attempts:
+            await self.main_page()
         await self.send_to_logs(
             'Остановка парсера, не найден <div> с играми после 5 попыток.'
         )
