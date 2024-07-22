@@ -18,6 +18,8 @@ venv/
 # Log files
 *.log
 *.logs
+github.pub
+github
 #.env.dev
 # Package files
 *.jar
