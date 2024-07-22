@@ -80,6 +80,9 @@ class FetchAkty:
             await self.send_to_logs(
                 "Режим отладки включен, данные не отправляются."
             )
+            await self.send_to_logs(
+                f'{data}'
+            )
             return
         try:
             json_data = json.dumps(data, ensure_ascii=False)
@@ -280,9 +283,7 @@ class FetchAkty:
 
         if text in self.translate_cash.keys():
             return self.translate_cash[text]
-        data_str = await self.redis_client.get('translate_cash')
-        if data_str:
-            self.translate_cash = json.loads(data_str.decode('utf-8'))
+
         translation = self.translator.translate(
             text, src='zh-cn',
             dest='ru'
@@ -291,6 +292,9 @@ class FetchAkty:
         self.translate_cash[text] = translation
         if self.debug:
             return translation
+        data_str = await self.redis_client.get('translate_cash')
+        if data_str:
+            self.translate_cash = json.loads(data_str.decode('utf-8'))
         self.translate_cash[text] = translation
         json_data = json.dumps(self.translate_cash, ensure_ascii=False)
         await self.redis_client.set('translate_cash', json_data)
@@ -545,9 +549,6 @@ class FetchAkty:
                     leagues_data = await self.extract_league_data(
                         target_leagues
                     )
-                    # await self.send_to_logs(
-                    #     f'Данные изменены: {leagues_data}'
-                    # )
                     previous_hash = current_hash
                     await self.send_and_save_data(leagues_data)
                 except Exception:
@@ -608,6 +609,6 @@ class FetchAkty:
 
 if __name__ == "__main__":
     LOCAL_DEBUG = 1
-    HEADLESS = False
+    HEADLESS = True
     fetch_akty = FetchAkty()
     asyncio.run(fetch_akty.run())
