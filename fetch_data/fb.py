@@ -20,6 +20,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
+URL = "https://test.f66b88sport.com/pc/index.html#/"
 
 LEAGUES = {
     'IPBL篮球专业组': 'IPBL Pro Division',
@@ -49,7 +50,7 @@ class OddsFetcher:
         :param leagues: Список целевых лиг.
         :param headless: Запуск браузера в headless режиме.
         """
-        self.url = "https://test.f66b88sport.com/pc/index.html#/"
+        self.url = URL
         self.loop = asyncio.new_event_loop()
         self.sio = socketio.AsyncSimpleClient()
         asyncio.set_event_loop(self.loop)
