@@ -83,17 +83,26 @@ project/
 ├── app/
 │   ├── __init__.py
 │   ├── main.py
+│   ├── logging.py
 │   ├── router.py
-│   ├── schema.py
-│   └── celery_app.py
+│   └── schema.py
 ├── fetch_data/
 │   ├── __init__.py
 │   ├── fetch.py
-│   └── fb.py
+│   ├── fb.py
+│   └── parsers.py
 ├── services_app/
 │   ├── __init__.py
-│   └── tasks.py
+│   ├── tasks.py
+│   └── celery_app.py
+├── scripts/
+│   └── run_initial_check_and_start_parsers.sh
+├── transfer_data/
+│   ├── __init__.py
+│   └── socketio_server.py
+├── logs/
 ├── .env
+├── .gitignore
 ├── requirements.txt
 └── README.md
 ```
@@ -103,15 +112,25 @@ project/
 
 main.py: Запуск FastAPI приложения.
 
+logging.py: Универсальный логер.
+
+schema.py: Схема, для валидации данных.
+
 router.py: Определение маршрутов для FastAPI.
 
 schema.py: Схемы данных для валидации входящих запросов.
 
 celery_app.py: Настройка и инициализация Celery.
 
+run_initial_check_and_start_parsers.sh: Скрипт мониторинга/запуска парсеров.
+
 tasks.py: Определение задач Celery.
+
+socketio_server.py: Сервер socket.io.
 
 akty.py: Реализация парсера Akty.com.
 
 fb.py: Реализация парсера fb.com.
+
+parsers.py: Список парсеров для запуска.
 ```

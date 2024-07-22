@@ -32,7 +32,7 @@ celery_app.conf.beat_schedule = {
     },
     'run_fb': {
         'task': 'services_app.tasks.parse_some_data',
-        'schedule': crontab(minute=0, hour='*/3'),
+        'schedule': crontab(minute=21, hour='*/1'),
         'args': ('FB',),
     },
     'check_and_start_parsers': {
