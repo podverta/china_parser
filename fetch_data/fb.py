@@ -387,12 +387,12 @@ class OddsFetcher:
                     await self.collect_odds_data(leagues)
                     await asyncio.sleep(1)  # Пауза между циклами сбора данных
             except Exception as e:
-                await self.send_to_logs(
-                    f"Произошла ошибка: {str(e)}. "
-                    f"Попытка {attempt + 1} из {max_retries}.")
                 self.driver.save_screenshot(
                     f'logs/screenshot_fb_{attempt}.png'
                 )
+                await self.send_to_logs(
+                    f"Произошла ошибка: {str(e)}. "
+                    f"Попытка {attempt + 1} из {max_retries}.")
                 attempt += 1
                 await asyncio.sleep(10)
                 if attempt >= max_retries:

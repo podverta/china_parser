@@ -594,11 +594,10 @@ class FetchAkty:
                 await self.monitor_leagues(leagues)
                 break  # Успешное выполнение, выход из цикла
             except Exception as e:
+                self.driver.save_screenshot(
+                    f'logs/screenshot_akty_{attempt}.png')
                 await self.send_to_logs(
                     f"Произошла ошибка: {str(e)}. Попытка {attempt + 1} из {max_retries}.")
-                self.driver.save_screenshot(
-                    f'logs/screenshot_akty_{attempt}.png'
-                )
                 await asyncio.sleep(10)
                 attempt += 1
                 if attempt >= max_retries:
