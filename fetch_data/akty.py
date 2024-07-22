@@ -569,26 +569,39 @@ class FetchAkty:
             self.driver.quit()
             print("Драйвер закрыт")
 
-    async def run(
-            self,
-            *args,
-            **kwargs
-    ):
+    async def run(self, *args, **kwargs):
         """
-        Запуск парсера с указанными параметрами.
+        Запуск парсера с указанными параметрами и перезапуском при ошибках.
 
-        :param args: Позиционные аргументы
-        :param kwargs: Именованные аргументы
+        Args:
+            *args: Позиционные аргументы.
+            **kwargs: Именованные аргументы.
         """
         leagues = kwargs.get('leagues', LEAGUES)
-        await self.change_zoom()
-        await self.init_async_components()
-        if self.debug:
-            await self.clear_cache()
-        await self.authorization()
-        await self.main_page()
-        await self.aggregator_page()
-        await self.monitor_leagues(leagues)
+        attempt = 0
+        max_retries = 5
+
+        while attempt < max_retries:
+            try:
+                await self.change_zoom()
+                await self.init_async_components()
+                if self.debug:
+                    await self.clear_cache()
+                await self.authorization()
+                await self.main_page()
+                await self.aggregator_page()
+                await self.monitor_leagues(leagues)
+                break  # Успешное выполнение, выход из цикла
+            except Exception as e:
+                await self.send_to_logs(
+                    f"Произошла ошибка: {str(e)}. Попытка {attempt + 1} из {max_retries}.")
+                attempt += 1
+                if attempt >= max_retries:
+                    await self.send_to_logs(
+                        "Достигнуто максимальное количество попыток. Остановка.")
+                    break
+            finally:
+                self.driver.quit()
 
 
 
