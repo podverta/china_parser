@@ -391,6 +391,7 @@ class OddsFetcher:
                     f"Произошла ошибка: {str(e)}. "
                     f"Попытка {attempt + 1} из {max_retries}.")
                 attempt += 1
+                await asyncio.sleep(10)
                 if attempt >= max_retries:
                     await self.send_to_logs(
                         "Достигнуто максимальное количество попыток. Остановка.")

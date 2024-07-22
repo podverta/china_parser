@@ -595,6 +595,7 @@ class FetchAkty:
             except Exception as e:
                 await self.send_to_logs(
                     f"Произошла ошибка: {str(e)}. Попытка {attempt + 1} из {max_retries}.")
+                await asyncio.sleep(10)
                 attempt += 1
                 if attempt >= max_retries:
                     await self.send_to_logs(
