@@ -366,26 +366,37 @@ class OddsFetcher:
             self.driver.quit()
             print("Драйвер закрыт")
 
-    async def run(
-            self,
-            *args,
-            **kwargs
-            ):
+    async def run(self, *args, **kwargs):
         """
-        Основной метод для запуска парсера.
+        Основной метод для запуска парсера с перезапуском при ошибках.
+
+        Args:
+            *args: Позиционные аргументы.
+            **kwargs: Именованные аргументы.
         """
-        try:
-            await self.init_async_components()
-            leagues = kwargs.get('leagues', LEAGUES)
-            await self.get_url()
-            await self.main_page()
-            while True:
-                await self.collect_odds_data(leagues)
-                await asyncio.sleep(1)  # Пауза между циклами сбора данных
-        except Exception as e:
-            await self.send_to_logs(f"Произошла ошибка: {str(e)}")
-        finally:
-            self.driver.quit()
+        attempt = 0
+        max_retries = 5
+
+        while attempt < max_retries:
+            try:
+                await self.init_async_components()
+                leagues = kwargs.get('leagues', LEAGUES)
+                await self.get_url()
+                await self.main_page()
+                while True:
+                    await self.collect_odds_data(leagues)
+                    await asyncio.sleep(1)  # Пауза между циклами сбора данных
+            except Exception as e:
+                await self.send_to_logs(
+                    f"Произошла ошибка: {str(e)}. "
+                    f"Попытка {attempt + 1} из {max_retries}.")
+                attempt += 1
+                if attempt >= max_retries:
+                    await self.send_to_logs(
+                        "Достигнуто максимальное количество попыток. Остановка.")
+                    break
+            finally:
+                self.driver.quit()
 
 
 if __name__ == "__main__":
