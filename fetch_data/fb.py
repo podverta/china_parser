@@ -388,7 +388,7 @@ class OddsFetcher:
                     await asyncio.sleep(1)  # Пауза между циклами сбора данных
             except Exception as e:
                 self.driver.save_screenshot(
-                    f'logs/screenshot_fb_{attempt}.png'
+                    f'screenshot_fb_{attempt}.png'
                 )
                 await self.send_to_logs(
                     f"Произошла ошибка: {str(e)}. "

@@ -595,7 +595,7 @@ class FetchAkty:
                 break  # Успешное выполнение, выход из цикла
             except Exception as e:
                 self.driver.save_screenshot(
-                    f'logs/screenshot_akty_{attempt}.png')
+                    f'screenshot_akty_{attempt}.png')
                 await self.send_to_logs(
                     f"Произошла ошибка: {str(e)}. Попытка {attempt + 1} из {max_retries}.")
                 await asyncio.sleep(10)
