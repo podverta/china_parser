@@ -425,7 +425,6 @@ class OddsFetcher:
                         active_matches["fb.com"][liga_name_translate].append(odds_data)
 
             await self.send_and_save_data(active_matches)
-            await self.send_to_logs(f'Данные: {active_matches}')
 
         except Exception as e:
             await self.send_to_logs(f"Произошла ошибка при сборе: {str(e)}")
