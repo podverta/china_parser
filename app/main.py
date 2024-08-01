@@ -1,12 +1,10 @@
 import json
-import uvicorn
 from fastapi import FastAPI
 from app.router import route
 from transfer_data.socketio_server import app as socket_app, origins
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
-from config import create_redis_pool, AsyncBufferHandler, log_buffer, logger
-import logging
+import uvicorn
 
 middleware = [
     Middleware(
@@ -18,23 +16,6 @@ middleware = [
     )
 ]
 app = FastAPI(middleware=middleware)
-
-
-# Запуск приложения: инициализация ресурсов
-@app.on_event("startup")
-async def startup_event():
-    app.state.redis = await create_redis_pool()
-    app.state.buffer_handler = AsyncBufferHandler(log_buffer, app.state.redis)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    app.state.buffer_handler.setFormatter(formatter)
-    logger.addHandler(app.state.buffer_handler)
-
-# Завершение работы приложения: закрытие ресурсов
-@app.on_event("shutdown")
-async def shutdown_event():
-    app.state.redis.close()
-    await app.state.redis.wait_closed()
-
 app.include_router(route)
 
 # Монтируем приложение SocketIO в FastAPI

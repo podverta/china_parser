@@ -19,7 +19,6 @@ from selenium.webdriver.support import expected_conditions as EC
 from app.logging import setup_logger
 from selenium.webdriver.common.action_chains import ActionChains
 
-
 # Загрузка переменных окружения из .env файла
 load_dotenv()
 URL = "https://test.f66b88sport.com/pc/index.html#/"
@@ -66,7 +65,6 @@ class OddsFetcher:
         self.translate_cash = {}
         self.translator = Translator()
         self.previous_data = {}
-
 
     async def get_driver(
             self,
@@ -138,10 +136,7 @@ class OddsFetcher:
             # Отправляем данные на Socket.IO сервер напрямую
             await self.sio.emit('message', json_data)
             # Сохраняем данные в Redis
-            for league, games in data['fb.com'].items():
-                for game in games:
-                    log_entry = json.dumps(game, ensure_ascii=False)
-                    await self.app.state.buffer_handler.emit(league, log_entry)
+            await self.redis_client.set('akty_data', json_data)
         except Exception as e:
             await self.send_to_logs(f'Ошибка при отправке данных: {str(e)}')
 
