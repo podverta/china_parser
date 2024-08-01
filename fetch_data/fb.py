@@ -479,6 +479,6 @@ class OddsFetcher:
 
 if __name__ == "__main__":
     LOCAL_DEBUG = 1
-    HEADLESS = False
+    HEADLESS = True
     fetcher = OddsFetcher()
     asyncio.run(fetcher.run())
