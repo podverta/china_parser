@@ -20,6 +20,7 @@ middleware = [
 app = FastAPI(middleware=middleware)
 
 
+# Запуск приложения: инициализация ресурсов
 @app.on_event("startup")
 async def startup_event():
     app.state.redis = await create_redis_pool()
@@ -28,6 +29,7 @@ async def startup_event():
     app.state.buffer_handler.setFormatter(formatter)
     logger.addHandler(app.state.buffer_handler)
 
+# Завершение работы приложения: закрытие ресурсов
 @app.on_event("shutdown")
 async def shutdown_event():
     app.state.redis.close()
