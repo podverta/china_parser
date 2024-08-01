@@ -10,6 +10,8 @@ load_dotenv()
 logger = setup_logger('socketio', 'socketio_debug.log')
 
 origins = [
+    "https://api.parserchina.com",
+    "http://api.parserchina.com",
     "http://parserchina.com",
     "https://parserchina.com",
 ]
