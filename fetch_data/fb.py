@@ -4,10 +4,11 @@ import socketio
 import json
 import asyncio
 import redis.asyncio as aioredis
+from typing import List, Dict, Any
 from bs4 import BeautifulSoup
 from datetime import datetime
 from dotenv import load_dotenv
-from selenium import webdriver
+from selenium.common.exceptions import WebDriverException, NoSuchElementException
 from googletrans import Translator
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
@@ -17,6 +18,7 @@ from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
 from app.logging import setup_logger
 from selenium.webdriver.common.action_chains import ActionChains
+from app.main import app
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
@@ -60,40 +62,62 @@ class OddsFetcher:
         )
         self.redis_client = None
         self.debug = LOCAL_DEBUG
-        self.actions = ActionChains(self.driver)
+        self.actions = None
         self.translate_cash = {}
         self.translator = Translator()
+        self.previous_data = {}
+        self.app = app
 
-    async def get_driver(self, headless: bool = False, retries: int = 3) -> uc.Chrome:
+    async def get_driver(
+            self,
+            headless: bool = False,
+            ) -> None:
         """
         Инициализирует и возвращает WebDriver для браузера Chrome.
-
         :param headless: Запуск браузера в headless режиме.
-        :param retries: Количество попыток запуска WebDriver в случае ошибки.
-        :return: WebDriver для браузера Chrome.
         """
-        options = uc.ChromeOptions()
-        attempt = 0
-        while attempt < retries:
-            try:
-                driver = uc.Chrome(options=options, headless=headless)
-                return driver
-            except WebDriverException as e:
-                attempt += 1
-                logger.error(f"Ошибка при запуске драйвера"
-                             f" (попытка {attempt} из {retries}): {e}")
-                if attempt >= retries:
-                    raise e
-                await asyncio.sleep(5)  # Ожидание перед повторной попыткой
+        return uc.Chrome(options=uc.ChromeOptions(), headless=headless)
 
     async def get_url(self):
         """
-        Загружает основную страницу по заданному URL.
+        Загружает основную страницу по заданному URL с проверкой на элемент загрузки.
         """
-        self.driver.get(self.url)
-        await self.send_to_logs(
-            f"Переход на главную страницу выыполнен {self.url}"
-        )
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.driver.get(self.url)
+                await asyncio.sleep(5)  # Ожидание загрузки страницы
+                try:
+                    loading_element = self.driver.find_element(
+                        By.CSS_SELECTOR,
+                        'div.q-loading.fullscreen.column.flex-center.z-max.text-black'
+                    )
+                    if loading_element:
+                        await self.send_to_logs(
+                            f"Элемент загрузки найден на странице {self.url},"
+                            f" перезагрузка страницы... (попытка {attempt + 1})"
+                        )
+                        continue  # Перезагрузка страницы и повторная попытка
+                except NoSuchElementException:
+                    await self.send_to_logs(
+                        f"Переход на главную страницу выполнен {self.url} "
+                        f"(попытка {attempt + 1})"
+                    )
+                    break  # Элемент загрузки не найден, продолжаем выполнение
+            except Exception as e:
+                await self.send_to_logs(
+                    f"Произошла ошибка: {e}. Попытка {attempt + 1} из {max_retries}."
+                )
+                if attempt + 1 >= max_retries:
+                    raise e
+                await asyncio.sleep(5)  # Ожидание перед повторной попыткой
+        else:
+            await self.send_to_logs(
+                f"Не удалось загрузить страницу без элемента загрузки после {max_retries} попыток"
+            )
+            raise Exception(
+                "Не удалось загрузить страницу без элемента загрузки.")
+
     async def send_and_save_data(
             self,
             data: dict,
@@ -103,6 +127,7 @@ class OddsFetcher:
 
         :param data: Данные для отправки и сохранения.
         """
+        self.previous_data = data
         if self.debug:
             await self.send_to_logs(
                 "Режим отладки включен, данные не отправляются."
@@ -113,7 +138,10 @@ class OddsFetcher:
             # Отправляем данные на Socket.IO сервер напрямую
             await self.sio.emit('message', json_data)
             # Сохраняем данные в Redis
-            await self.redis_client.set('akty_data', json_data)
+            for league, games in data['fb.com'].items():
+                for game in games:
+                    log_entry = json.dumps(game, ensure_ascii=False)
+                    await self.app.state.buffer_handler.emit(league, log_entry)
         except Exception as e:
             await self.send_to_logs(f'Ошибка при отправке данных: {str(e)}')
 
@@ -151,7 +179,6 @@ class OddsFetcher:
         if not self.debug:
             logger.info(message)
         print(f"Logger: {message}")
-
 
     async def wait_for_element(
             self,
@@ -218,15 +245,12 @@ class OddsFetcher:
         """
         if short_name in self.translate_cash.keys():
             return self.translate_cash[short_name]
-
-        time.sleep(1)  # Подождем, чтобы всплывающее окно появилось
-        data_str = await self.redis_client.get('translate_cash')
-        if data_str:
-            self.translate_cash = json.loads(data_str.decode('utf-8'))
+        time.sleep(1)
         team1_element = self.driver.find_element(By.XPATH, f"//*[text()='{short_name}']")
+        if self.actions is None:
+            self.actions = ActionChains(self.driver)
         self.actions.move_to_element(team1_element).perform()
-        time.sleep(2)  # Увеличиваем время ожидания
-
+        time.sleep(2)
         full_name_element = self.driver.execute_script("""
                    var tooltip = document.querySelector('div[role="complementary"].q-tooltip--style.q-position-engine.no-pointer-events[style*="visibility: visible"]');
                    if (tooltip) {
@@ -235,7 +259,6 @@ class OddsFetcher:
                        return null;
                    }
                """)
-
         if full_name_element:
             translation = self.translator.translate(
                 full_name_element, src='zh-cn',
@@ -246,9 +269,38 @@ class OddsFetcher:
                 return translation
             json_data = json.dumps(self.translate_cash, ensure_ascii=False)
             await self.redis_client.set('translate_cash', json_data)
-            await self.send_to_logs(f"Перевод текста {text} - {translation}")
+            await self.send_to_logs(f"Перевод текста {short_name} - {translation}")
             return full_name_element
         return None
+
+    @staticmethod
+    async def check_changed_dict(
+            existing_list: List[Dict[str, Any]],
+            new_dict: Dict[str, Any],
+    )-> Dict:
+        """
+        Обновляет список словарей, если конкретный словарь изменился, или добавляет его, если его нет.
+
+        Args:
+            existing_list (List[Dict[str, Any]]): Список существующих словарей.
+            new_dict (Dict[str, Any]): Новый словарь для добавления или обновления.
+
+        Returns:
+            List[Dict[str, Any]]: Обновленный список словарей.
+        """
+        for i, existing_dict in enumerate(existing_list):
+            if (existing_dict['opponent_0']['name'] ==
+                    new_dict['opponent_0']['name'] and
+                    existing_dict['opponent_1']['name'] ==
+                    new_dict['opponent_1']['name']):
+                if (existing_dict['opponent_0'] ==
+                    new_dict['opponent_0'] and
+                    existing_dict['opponent_1'] ==
+                    new_dict['opponent_1']
+                ):
+                    new_dict['changed'] = False
+
+        return new_dict
 
     async def collect_odds_data(
             self,
@@ -288,7 +340,6 @@ class OddsFetcher:
                             short_team1_name) if short_team1_name != '' else ''
                         full_team2_name = await self.get_full_team_name(
                             short_team2_name) if short_team1_name != '' else ''
-
                         scores = match.select('.match-score p span')
                         if len(scores) != 2:
                             continue
@@ -321,16 +372,14 @@ class OddsFetcher:
                                 'total_bet': ""
                             },
                             'process_time': process_time,
-                            'server_time': server_time
+                            'server_time': server_time,
+                            'changed': True,
                         }
-
                         odds_boxes = match.select('.home-match-odds-box')
                         found_handicap = False
                         found_ou = False
-
                         for odds_box in odds_boxes:
                             category = odds_box.get('class', '')
-
                             if 'match-full-odds-handicap' in category and not found_handicap:
                                 found_handicap = True
                                 odds_items = odds_box.select('.team-odds-list .value.font-din')
@@ -339,7 +388,12 @@ class OddsFetcher:
                                         odds_items[0].text)
                                     odds_data['opponent_1']['handicap_bet'] = (
                                         odds_items[1].text)
-
+                                handicap_points = odds_box.select('.team-odds-list .prefix-text.text-grey-disable')
+                                if len(handicap_points) >=2:
+                                    odds_data['opponent_0']['handicap_point'] = (
+                                        handicap_points[0].text)
+                                    odds_data['opponent_1']['handicap_point'] = (
+                                        handicap_points[1].text)
                             elif ('match-full-odds-total' in category and
                                   not found_ou):
                                 found_ou = True
@@ -347,14 +401,39 @@ class OddsFetcher:
                                 if len(odds_items) >= 2:
                                     odds_data['opponent_0']['total_bet'] = odds_items[0].text
                                     odds_data['opponent_1']['total_bet'] = odds_items[1].text
+                                total_points = odds_box.select(
+                                    '.team-odds-list .prefix-text.text-grey-disable')
+                                if len(total_points) >= 2:
+                                    point_0 = total_points[0].text
+                                    point_1 = total_points[1].text
+                                    point_0_translate = point_0.replace(
+                                        '大', '+'
+                                    ).replace('小', '-').replace(
+                                            ' ', ''
+                                    )
+                                    point_1_translate = point_1.replace(
+                                        '大','+'
+                                    ).replace( '小', '-').replace(
+                                            ' ', ''
+                                    )
+                                    odds_data['opponent_0'][
+                                        'total_point'] = point_0_translate
+                                    odds_data['opponent_1'][
+                                        'total_point'] = point_1_translate
+
+                        if (self.previous_data and liga_name_translate
+                                in self.previous_data.get("fb.com", {})):
+                            odds_data = await self.check_changed_dict(
+                                self.previous_data["fb.com"][liga_name_translate],
+                                odds_data,
+                            )
                         active_matches["fb.com"][liga_name_translate].append(odds_data)
-            # await self.send_to_logs(
-            #     f"Данные обновлены: {active_matches}"
-            # )
+
             await self.send_and_save_data(active_matches)
+            await self.send_to_logs(f'Данные: {active_matches}')
 
         except Exception as e:
-            await self.send_to_logs(f"Произошла ошибка: {str(e)}")
+            await self.send_to_logs(f"Произошла ошибка при сборе: {str(e)}")
 
     async def close(self):
         if self.driver:

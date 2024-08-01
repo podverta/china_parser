@@ -611,6 +611,6 @@ class FetchAkty:
 
 if __name__ == "__main__":
     LOCAL_DEBUG = 1
-    HEADLESS = True
+    HEADLESS = False
     fetch_akty = FetchAkty()
     asyncio.run(fetch_akty.run())
