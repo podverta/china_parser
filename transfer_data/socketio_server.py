@@ -10,8 +10,8 @@ load_dotenv()
 logger = setup_logger('socketio', 'socketio_debug.log')
 
 origins = [
-    "http://parserbk.compas-pro.ru",
-    "https://parserbk.compas-pro.ru",
+    "http://parserchina.com",
+    "https://parserchina.com",
 ]
 
 sio = socketio.AsyncServer(
