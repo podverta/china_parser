@@ -18,7 +18,7 @@ from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
 from app.logging import setup_logger
 from selenium.webdriver.common.action_chains import ActionChains
-from app.main import app
+
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
@@ -66,7 +66,7 @@ class OddsFetcher:
         self.translate_cash = {}
         self.translator = Translator()
         self.previous_data = {}
-        self.app = app
+
 
     async def get_driver(
             self,
