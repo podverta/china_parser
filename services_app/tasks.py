@@ -1,6 +1,5 @@
 import os
 import asyncio
-import aioredis
 import time
 import urllib3
 from dotenv import load_dotenv
@@ -9,33 +8,19 @@ from celery import current_app
 from services_app.celery_app import celery_app, logger, redis_client
 from fetch_data.parsers import parsers
 
-load_dotenv()
-
-REDIS_URL = os.getenv('REDIS_URL')
 
 PARSER_TIMEOUT = 60  # Таймаут для завершения старого инстанса
 
-redis_client = aioredis.from_url(REDIS_URL)
 
-async def stop_task(task_id: str):
-    """
-    Остановка задачи Celery.
-
-    :param task_id: ID задачи для остановки.
-    """
+def stop_task(task_id):
     try:
-        await current_app.control.revoke(task_id, terminate=True)
+        current_app.control.revoke(task_id, terminate=True)
         logger.info(f"Задача {task_id} была остановлена.")
     except Exception as e:
         logger.error(f"Не удалось остановить задачу {task_id}: {e}")
 
 
-async def clear_task_metadata(task_id: str):
-    """
-    Удаление метаданных задачи из Redis.
-
-    :param task_id: ID задачи, чьи метаданные нужно удалить.
-    """
+def clear_task_metadata(task_id):
     try:
         celery_result = current_app.AsyncResult(task_id)
         celery_result.forget()
@@ -44,14 +29,11 @@ async def clear_task_metadata(task_id: str):
         logger.error(f"Не удалось удалить метаданные задачи {task_id}: {e}")
 
 
-async def delete_celery_task_meta_keys():
-    """
-    Удаление всех ключей `celery-task-meta-*` из Redis.
-    """
+def delete_celery_task_meta_keys():
     try:
-        keys = await redis_client.keys("celery-task-meta-*")
+        keys = redis_client.keys("celery-task-meta-*")
         if keys:
-            await redis_client.delete(*keys)
+            redis_client.delete(*keys)
             logger.info(f"Удалены следующие ключи из Redis: {keys}")
         else:
             logger.info("Ключи для удаления не найдены.")
@@ -60,7 +42,7 @@ async def delete_celery_task_meta_keys():
 
 
 @celery_app.task(bind=True, max_retries=5, default_retry_delay=60)
-def schedule_stop_previous_instance(self, parser_name: str, previous_task_id: str):
+def schedule_stop_previous_instance(self, parser_name, previous_task_id):
     """
     Планирует остановку предыдущего инстанса парсера через минуту.
 
@@ -68,14 +50,13 @@ def schedule_stop_previous_instance(self, parser_name: str, previous_task_id: st
     :param parser_name: Имя класса парсера, который необходимо запустить.
     :param previous_task_id: ID предыдущего таска парсера.
     """
-    logger.info(
-        f"Запланирована остановка предыдущей задачи {previous_task_id} "
-        f"для парсера {parser_name} через {PARSER_TIMEOUT} секунд.")
     try:
-        # Используем asyncio.sleep для асинхронного ожидания
-        asyncio.run(asyncio.sleep(PARSER_TIMEOUT))
-        asyncio.run(stop_task(previous_task_id))
-        asyncio.run(clear_task_metadata(previous_task_id))
+        logger.info(
+            f"Запланирована остановка предыдущей задачи {previous_task_id} "
+            f"для парсера {parser_name} через {PARSER_TIMEOUT} секунд.")
+        time.sleep(PARSER_TIMEOUT)
+        stop_task(previous_task_id)
+        clear_task_metadata(previous_task_id)
         logger.info(
             f"Предыдущая задача {previous_task_id} для парсера "
             f"{parser_name} остановлена.")
@@ -83,11 +64,11 @@ def schedule_stop_previous_instance(self, parser_name: str, previous_task_id: st
         logger.error(
             f"Ошибка при остановке предыдущего инстанса"
             f" парсера {parser_name}: {e}")
-        raise self.retry(exc=e)
+        self.retry(exc=e)
 
 
 @celery_app.task(bind=True, max_retries=5, default_retry_delay=60)
-def parse_some_data(self, parser_name: str, *args, **kwargs):
+def parse_some_data(self, parser_name, *args, **kwargs):
     """
     Запуск парсера для обработки данных.
 
@@ -106,7 +87,7 @@ def parse_some_data(self, parser_name: str, *args, **kwargs):
             raise ValueError(f"Парсер с именем {parser_name} не найден")
 
         # Остановка предыдущего инстанса, если он существует
-        previous_task_id = asyncio.run(redis_client.get(f"active_parser_{parser_name}"))
+        previous_task_id = redis_client.get(f"active_parser_{parser_name}")
         if previous_task_id:
             previous_task_id = previous_task_id.decode()
             if previous_task_id != self.request.id and not kwargs.get(
@@ -130,7 +111,7 @@ def parse_some_data(self, parser_name: str, *args, **kwargs):
         kwargs.pop('is_first_run', None)
 
         # Сохраняем текущий task_id в Redis сразу
-        asyncio.run(redis_client.set(f"active_parser_{parser_name}", self.request.id))
+        redis_client.set(f"active_parser_{parser_name}", self.request.id)
         logger.info(
             f"Установлена активная задача {self.request.id} "
             f"для парсера {parser_name} в Redis.")
@@ -144,30 +125,28 @@ def parse_some_data(self, parser_name: str, *args, **kwargs):
     except urllib3.exceptions.ProtocolError as e:
         logger.error(
             f"Ошибка протокола при выполнении парсера {parser_name}: {e}")
-        raise self.retry(exc=e)
+        self.retry(exc=e)
     except Exception as e:
         logger.error(f"Ошибка при выполнении парсера {parser_name}: {e}")
-        raise self.retry(exc=e)
+        self.retry(exc=e)
     finally:
         if parser:
             asyncio.run(parser.close())
         # Удаление метаданных задачи
-        asyncio.run(clear_task_metadata(self.request.id))
+        clear_task_metadata(self.request.id)
 
 
 @celery_app.task
 def check_and_start_parsers(is_first_run: bool = False):
     """
     Проверяет активные задачи парсеров и запускает их, если они не работают.
-
-    :param is_first_run: Флаг первого запуска для удаления старых данных.
     """
     logger.info("Запуск проверки активных задач парсеров.")
 
     if is_first_run:
         logger.info(
             "Первый запуск, удаление всех celery-task-meta ключей из Redis.")
-        asyncio.run(delete_celery_task_meta_keys())
+        delete_celery_task_meta_keys()
 
     inspect = current_app.control.inspect()
     active_tasks = inspect.active()  # Получаем активные задачи
@@ -186,17 +165,17 @@ def check_and_start_parsers(is_first_run: bool = False):
             parser_tasks.sort(
                 key=lambda x: x['time_start'])  # Сортируем по времени старта
             for task in parser_tasks[:-2]:
-                asyncio.run(stop_task(task['id']))
+                stop_task(task['id'])
                 logger.info(
                     f"Старая задача {task['id']} для парсера"
                     f" {parser_name} была остановлена.")
 
-        active_task_id = asyncio.run(redis_client.get(f"active_parser_{parser_name}"))
+        active_task_id = redis_client.get(f"active_parser_{parser_name}")
         if not active_task_id or is_first_run:
             logger.info(
                 f"Активная задача для парсера {parser_name} не найдена, "
                 f"запуск новой задачи через 30 секунд.")
-            asyncio.run(asyncio.sleep(30))
+            time.sleep(30)
             parse_some_data.apply_async(args=(parser_name,),
                                         kwargs={'is_first_run': is_first_run})
         else:
