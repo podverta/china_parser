@@ -10,14 +10,16 @@ load_dotenv()
 logger = setup_logger('socketio', 'socketio_debug.log')
 
 origins = [
-    "api.parserchina.com",
-    "parserchina.com",
+    "http://api.parserchina.com",
+    "http://parserchina.com",
+    "https://api.parserchina.com",
+    "https://parserchina.com",
 ]
 
 sio = socketio.AsyncServer(
     async_mode="asgi",
     allow_upgrades=False,
-    cors_allowed_origins="*",
+    cors_allowed_origins=origins,
     namespaces='/socket.io',
     max_http_buffer_size=10 * 1024 * 1024  # 10 MB
 )
