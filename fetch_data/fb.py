@@ -1,5 +1,6 @@
 import time
 import os
+import re
 import socketio
 import json
 import asyncio
@@ -8,7 +9,6 @@ from typing import List, Dict, Any
 from bs4 import BeautifulSoup
 from datetime import datetime
 from dotenv import load_dotenv
-from selenium.common.exceptions import WebDriverException, NoSuchElementException
 from googletrans import Translator
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
@@ -81,27 +81,52 @@ class OddsFetcher:
         Загружает основную страницу по заданному URL с проверкой на элемент загрузки.
         """
         max_retries = 3
+        wait_time = 10  # Время ожидания для исчезновения элемента
+
         for attempt in range(max_retries):
             try:
+                # Очистка кеша и cookies
+                self.driver.delete_all_cookies()
+
+                # Перезагрузка страницы
                 self.driver.get(self.url)
-                await asyncio.sleep(5)  # Ожидание загрузки страницы
+
+                # Явное ожидание появления и исчезновения элемента загрузки
                 try:
-                    loading_element = self.driver.find_element(
-                        By.CSS_SELECTOR,
-                        'div.q-loading.fullscreen.column.flex-center.z-max.text-black'
+                    WebDriverWait(self.driver, wait_time).until(
+                        EC.presence_of_element_located((
+                            By.CSS_SELECTOR,
+                            'div.q-loading.fullscreen.column.flex-center.z-max.text-black'
+                        ))
                     )
-                    if loading_element:
-                        await self.send_to_logs(
-                            f"Элемент загрузки найден на странице {self.url},"
-                            f" перезагрузка страницы... (попытка {attempt + 1})"
-                        )
-                        continue  # Перезагрузка страницы и повторная попытка
-                except NoSuchElementException:
+
+                    # Дополнительное ожидание исчезновения элемента
+                    WebDriverWait(self.driver, wait_time).until_not(
+                        EC.visibility_of_element_located((
+                            By.CSS_SELECTOR,
+                            'div.q-loading.fullscreen.column.flex-center.z-max.text-black'
+                        ))
+                    )
+
+                    # Логируем успешную загрузку
                     await self.send_to_logs(
-                        f"Переход на главную страницу выполнен {self.url} "
+                        f"Элемент загрузки исчез, страница загружена {self.url} "
                         f"(попытка {attempt + 1})"
                     )
-                    break  # Элемент загрузки не найден, продолжаем выполнение
+                    break  # Элемент загрузки исчез, продолжаем выполнение
+
+                except TimeoutException:
+                    # Элемент загрузки не исчез
+                    await self.send_to_logs(
+                        f"Элемент загрузки не исчез на странице {self.url}, "
+                        f"перезагрузка страницы... (попытка {attempt + 1})"
+                    )
+
+                    # Явное обновление страницы
+                    self.driver.refresh()
+                    await asyncio.sleep(5)  # Ожидание перед повторной попыткой
+                    continue  # Перезагрузка страницы и повторная попытка
+
             except Exception as e:
                 await self.send_to_logs(
                     f"Произошла ошибка: {e}. Попытка {attempt + 1} из {max_retries}."
@@ -109,6 +134,7 @@ class OddsFetcher:
                 if attempt + 1 >= max_retries:
                     raise e
                 await asyncio.sleep(5)  # Ожидание перед повторной попыткой
+
         else:
             await self.send_to_logs(
                 f"Не удалось загрузить страницу без элемента загрузки после {max_retries} попыток"
@@ -231,41 +257,51 @@ class OddsFetcher:
         await self.sio.disconnect()
         self.driver.quit()
 
-    async def get_full_team_name(
+    async def get_translate(
             self,
-            short_name: str
+            short_name: str,
+            is_only_translate: bool = False
     ) -> str:
         """
         Получает полное название команды, используя кэш или выполнив наведение на элемент.
         """
+        translation = ""
         if short_name in self.translate_cash.keys():
             return self.translate_cash[short_name]
-        time.sleep(1)
-        team1_element = self.driver.find_element(By.XPATH, f"//*[text()='{short_name}']")
-        if self.actions is None:
-            self.actions = ActionChains(self.driver)
-        self.actions.move_to_element(team1_element).perform()
-        time.sleep(2)
-        full_name_element = self.driver.execute_script("""
-                   var tooltip = document.querySelector('div[role="complementary"].q-tooltip--style.q-position-engine.no-pointer-events[style*="visibility: visible"]');
-                   if (tooltip) {
-                       return tooltip.textContent.trim();
-                   } else {
-                       return null;
-                   }
-               """)
-        if full_name_element:
+        if not is_only_translate:
+            time.sleep(1)
+            team1_element = self.driver.find_element(By.XPATH, f"//*[text()='{short_name}']")
+            if self.actions is None:
+                self.actions = ActionChains(self.driver)
+            self.actions.move_to_element(team1_element).perform()
+            time.sleep(2)
+            full_name_element = self.driver.execute_script("""
+                       var tooltip = document.querySelector('div[role="complementary"].q-tooltip--style.q-position-engine.no-pointer-events[style*="visibility: visible"]');
+                       if (tooltip) {
+                           return tooltip.textContent.trim();
+                       } else {
+                           return null;
+                       }
+                   """)
+            if full_name_element:
+                translation = self.translator.translate(
+                    full_name_element, src='zh-cn',
+                    dest='ru'
+                ).text
+        if is_only_translate:
             translation = self.translator.translate(
-                full_name_element, src='zh-cn',
+                short_name, src='zh-cn',
                 dest='ru'
             ).text
+        if translation:
             self.translate_cash[short_name] = translation
             if self.debug:
                 return translation
             json_data = json.dumps(self.translate_cash, ensure_ascii=False)
             await self.redis_client.set('translate_cash', json_data)
-            await self.send_to_logs(f"Перевод текста {short_name} - {translation}")
-            return full_name_element
+            await self.send_to_logs(f"Перевод текста {short_name}"
+                                    f" - {translation}")
+            return translation
         return None
 
     @staticmethod
@@ -315,7 +351,7 @@ class OddsFetcher:
                 if league_name_element is None:
                     continue
                 league_name = league_name_element.text
-                if league_name in target_leagues.keys():
+                if league_name in target_leagues:
                     if league_name not in active_matches["fb.com"]:
                         liga_name_translate = target_leagues[league_name]
                         active_matches["fb.com"][liga_name_translate] = []
@@ -331,9 +367,9 @@ class OddsFetcher:
 
                         short_team1_name = team_names[0].text.strip()
                         short_team2_name = team_names[1].text.strip()
-                        full_team1_name = await self.get_full_team_name(
+                        full_team1_name = await self.get_translate(
                             short_team1_name) if short_team1_name != '' else ''
-                        full_team2_name = await self.get_full_team_name(
+                        full_team2_name = await self.get_translate(
                             short_team2_name) if short_team1_name != '' else ''
                         scores = match.select('.match-score p span')
                         if len(scores) != 2:
@@ -341,13 +377,23 @@ class OddsFetcher:
 
                         score1 = scores[0].text
                         score2 = scores[1].text
+                        process_time_text_translate = ''
+                        process_time = ''
+                        process_time_elements = match.select('.time')
+                        if process_time_elements:
+                            process_time_text_element = process_time_elements[
+                                0].select_one('.match-left-text.font-din')
+                            if process_time_text_element and process_time_text_element.text.strip():
+                                process_time_text_translate = await self.get_translate(
+                                    process_time_text_element.text.strip(),
+                                    is_only_translate=True
+                                )
 
-                        process_time_element = match.select_one(
-                            '.match-left-time'
-                        )
-                        if process_time_element is None:
-                            continue
-                        process_time = process_time_element.text.strip()
+                            process_time_element = process_time_elements[
+                                0].select_one('.match-left-time.font-din')
+
+                            if process_time_element and process_time_element.text.strip():
+                                process_time = process_time_element.text.strip()
 
                         server_time = datetime.now().strftime(
                             '%Y-%m-%d %H:%M:%S'
@@ -357,15 +403,20 @@ class OddsFetcher:
                             'opponent_0': {
                                 'name': full_team1_name,
                                 'score': score1,
-                                'handicap_bet': "",
-                                'total_bet': ""
+                                'handicap_bet': '',
+                                'handicap_point': '',
+                                'total_bet': '',
+                                'total_point': ''
                             },
                             'opponent_1': {
                                 'name': full_team2_name,
                                 'score': score2,
-                                'handicap_bet': "",
-                                'total_bet': ""
+                                'handicap_bet': '',
+                                'handicap_point': '',
+                                'total_bet': '',
+                                'total_point': ''
                             },
+                            'process_time_text': process_time_text_translate,
                             'process_time': process_time,
                             'server_time': server_time,
                             'changed': True,
@@ -401,20 +452,16 @@ class OddsFetcher:
                                 if len(total_points) >= 2:
                                     point_0 = total_points[0].text
                                     point_1 = total_points[1].text
-                                    point_0_translate = point_0.replace(
-                                        '大', '+'
-                                    ).replace('小', '-').replace(
-                                            ' ', ''
+                                    point_0_cleared = re.sub(
+                                        r'[大小 ]', '', point_0
                                     )
-                                    point_1_translate = point_1.replace(
-                                        '大','+'
-                                    ).replace( '小', '-').replace(
-                                            ' ', ''
+                                    point_1_cleared = re.sub(
+                                        r'[大小 ]', '', point_1
                                     )
                                     odds_data['opponent_0'][
-                                        'total_point'] = point_0_translate
+                                        'total_point'] = point_0_cleared
                                     odds_data['opponent_1'][
-                                        'total_point'] = point_1_translate
+                                        'total_point'] = point_1_cleared
 
                         if (self.previous_data and liga_name_translate
                                 in self.previous_data.get("fb.com", {})):
@@ -423,7 +470,8 @@ class OddsFetcher:
                                 odds_data,
                             )
                         active_matches["fb.com"][liga_name_translate].append(odds_data)
-
+            if self.debug:
+                await self.send_to_logs(f'{active_matches}')
             await self.send_and_save_data(active_matches)
 
         except Exception as e:
@@ -478,6 +526,6 @@ class OddsFetcher:
 
 if __name__ == "__main__":
     LOCAL_DEBUG = 1
-    HEADLESS = True
+    HEADLESS = False
     fetcher = OddsFetcher()
     asyncio.run(fetcher.run())

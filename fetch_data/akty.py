@@ -7,6 +7,7 @@ import traceback
 import json
 import redis.asyncio as aioredis
 import undetected_chromedriver as uc
+from typing import List, Dict, Any
 from googletrans import Translator
 from zoneinfo import ZoneInfo
 from datetime import datetime
@@ -66,6 +67,7 @@ class FetchAkty:
         self.translate_cash = {}
         self.translator = Translator()
         self.action = ActionChains(self.driver)
+        self.previous_data = {}
 
     async def send_and_save_data(
             self,
@@ -76,6 +78,7 @@ class FetchAkty:
 
         :param data: Данные для отправки и сохранения.
         """
+        self.previous_data = data
         if self.debug:
             await self.send_to_logs(
                 "Режим отладки включен, данные не отправляются."
@@ -251,6 +254,35 @@ class FetchAkty:
         if not self.debug:
             logger.info(message)
         print(f"Logger: {message}")
+
+    @staticmethod
+    async def check_changed_dict(
+            existing_list: List[Dict[str, Any]],
+            new_dict: Dict[str, Any],
+    ) -> Dict:
+        """
+        Обновляет список словарей, если конкретный словарь изменился, или добавляет его, если его нет.
+
+        Args:
+            existing_list (List[Dict[str, Any]]): Список существующих словарей.
+            new_dict (Dict[str, Any]): Новый словарь для добавления или обновления.
+
+        Returns:
+            List[Dict[str, Any]]: Обновленный список словарей.
+        """
+        for i, existing_dict in enumerate(existing_list):
+            if (existing_dict['opponent_0']['name'] ==
+                    new_dict['opponent_0']['name'] and
+                    existing_dict['opponent_1']['name'] ==
+                    new_dict['opponent_1']['name']):
+                if (existing_dict['opponent_0'] ==
+                        new_dict['opponent_0'] and
+                        existing_dict['opponent_1'] ==
+                        new_dict['opponent_1']
+                ):
+                    new_dict['changed'] = False
+
+        return new_dict
 
     async def authorization(
             self
@@ -486,24 +518,48 @@ class FetchAkty:
                             'span',
                             class_='highlight-odds'
                         )
+                        handicap_point_divs = bet_divs[1].find_all(
+                            'div',
+                            class_='handicap-value-text handicap-value-ranks'
+                        )
                         opponent_0_handicap_bet = handicap_bet_div[
                             0].get_text() if len(handicap_bet_div) > 0 else ""
+                        opponent_0_handicap_point = handicap_point_divs[
+                            0].get_text().strip() if len(handicap_point_divs) > 0 else ""
                         opponent_1_handicap_bet = handicap_bet_div[
                             1].get_text() if len(handicap_bet_div) > 1 else ""
+                        opponent_1_handicap_point = handicap_point_divs[
+                            1].get_text().strip() if len(handicap_point_divs) > 1 else ""
                         total_bet_div = bet_divs[2].find_all(
                             'span',
                             class_='highlight-odds'
                         )
+                        total_point_divs = bet_divs[2].find_all(
+                            'div',
+                            class_='handicap-value-text handicap-value-ranks'
+                        )
                         opponent_0_total_bet = total_bet_div[0].get_text() if len(
                             total_bet_div) > 0 else ""
+                        opponent_0_total_point = total_point_divs[
+                            0].get_text().strip() if len(
+                            total_point_divs) > 0 else ""
                         opponent_1_total_bet = total_bet_div[1].get_text() if len(
                             total_bet_div) > 1 else ""
+                        opponent_1_total_point = total_point_divs[
+                            1].get_text().strip() if len(
+                            total_point_divs) > 1 else ""
                         process_time_span = list_mid_element.find(
                             'span',
                             class_='timer-layout2'
                         )
-                        process_time = process_time_span.get_text() if\
+                        process_time = process_time_span.get_text() if \
                             process_time_span else ""
+                        process_time_div_text = list_mid_element.find(
+                            'div',
+                            class_='process_name'
+                        )
+                        process_time_text = process_time_div_text.get_text() if \
+                            process_time_div_text else ""
                         server_time = datetime.now(
                             tz=ZoneInfo("Europe/Moscow")).strftime(
                             "%Y-%m-%d %H:%M:%S")
@@ -512,20 +568,33 @@ class FetchAkty:
                                 'name': translate_opponent_0_name,
                                 'score': opponent_0_score,
                                 'handicap_bet': opponent_0_handicap_bet,
+                                'handicap_point': opponent_0_handicap_point,
                                 'total_bet': opponent_0_total_bet,
+                                'total_point': opponent_0_total_point,
                             },
                             'opponent_1': {
                                 'name': translate_opponent_1_name,
                                 'score': opponent_1_score,
                                 'handicap_bet': opponent_1_handicap_bet,
+                                'handicap_point': opponent_1_handicap_point,
                                 'total_bet': opponent_1_total_bet,
+                                'total_point': opponent_1_total_point,
                             },
                             'process_time': process_time,
-                            'server_time': server_time
+                            'process_time_text': process_time_text,
+                            'server_time': server_time,
+                            'changed': True,
                         }
                         if league_name not in leagues_data[NAME_BOOKMAKER]:
                             leagues_data[NAME_BOOKMAKER][league_name] = []
+                        if (self.previous_data and league_name
+                                in self.previous_data.get(NAME_BOOKMAKER, {})):
+                            game_info = await self.check_changed_dict(
+                                    self.previous_data[NAME_BOOKMAKER][league_name],
+                                    game_info,
+                                )
                         leagues_data[NAME_BOOKMAKER][league_name].append(game_info)
+
         return leagues_data
 
     async def monitor_leagues(
