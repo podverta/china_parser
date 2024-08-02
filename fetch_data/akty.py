@@ -558,7 +558,8 @@ class FetchAkty:
                             'div',
                             class_='process_name'
                         )
-                        process_time_text = process_time_div_text.get_text() if \
+                        process_time_text = await self.translate_and_cache(
+                            process_time_div_text.get_text()) if \
                             process_time_div_text else ""
                         server_time = datetime.now(
                             tz=ZoneInfo("Europe/Moscow")).strftime(
