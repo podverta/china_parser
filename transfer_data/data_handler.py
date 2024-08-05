@@ -1,4 +1,5 @@
 import json
+from typing import Optional
 from fastapi import FastAPI
 from aioredis import Redis
 from socketio import AsyncClient
@@ -30,7 +31,12 @@ async def send_and_save_data(data: str, service_name: str, app: FastAPI) -> None
     except Exception as e:
         print(f'Error sending data: {str(e)}')
 
-async def set_load_data_redis(action: str, key: str, app: FastAPI, data: Optional[dict] = None) -> Optional[dict]:
+async def set_load_data_redis(
+        action: str,
+        key: str,
+        app: FastAPI,
+        data: Optional[dict] = None
+) -> Optional[dict]:
     """
     Saves or loads data from Redis depending on the action.
 
