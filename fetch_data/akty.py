@@ -8,6 +8,7 @@ import json
 import redis.asyncio as aioredis
 import undetected_chromedriver as uc
 from typing import List, Dict, Any
+from fastapi import FastAPI
 from googletrans import Translator
 from zoneinfo import ZoneInfo
 from datetime import datetime
@@ -21,6 +22,8 @@ from selenium.webdriver.common.keys import Keys
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from app.logging import setup_logger
+from transfer_data.data_handler import send_and_save_data
+from transfer_data.redis_handler import handle_redis_data
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
@@ -33,7 +36,6 @@ LEAGUES = {
     '火箭篮球联盟': 'Rocket Basketball League',
     '火箭女子篮球联盟': 'Rocket Basketball League Women',
 }
-
 PROXY = os.getenv('PROXY')
 URL = os.getenv('AKTY_URL')
 LOGIN = os.getenv('AKTY_LOGIN')
@@ -75,7 +77,7 @@ class FetchAkty:
         self.action = ActionChains(self.driver)
         self.previous_data = {}
 
-    async def send_and_save_data(
+    async def transfer_data(
             self,
             data: dict
     ):
@@ -96,9 +98,7 @@ class FetchAkty:
         try:
             json_data = json.dumps(data, ensure_ascii=False)
             # Отправляем данные на Socket.IO сервер напрямую
-            await self.sio.emit('message', json_data)
-            # Сохраняем данные в Redis
-            await self.redis_client.set('akty_data', json_data)
+            await send_and_save_data(json_data, 'akty_data')
         except Exception as e:
             await self.send_to_logs(f'Ошибка при отправке данных: {str(e)}')
 
@@ -109,16 +109,10 @@ class FetchAkty:
         if self.debug:
             return None
         try:
-            await self.send_to_logs(
-                f"Connecting to Redis at {REDIS_URL}"
+            data_str = await handle_redis_data(
+                action='load',
+                key='translate_cash'
             )
-            self.redis_client = await aioredis.from_url(REDIS_URL)
-            await self.send_to_logs(
-                f"Connecting to Socket.IO server at {SOCKETIO_URL}"
-            )
-            await self.sio.connect(SOCKETIO_URL,
-                                   auth={'socket_key': SOCKET_KEY})
-            data_str = await self.redis_client.get('translate_cash')
             if data_str:
                 self.translate_cash = json.loads(data_str.decode('utf-8'))
         except Exception as e:
@@ -323,12 +317,19 @@ class FetchAkty:
         self.translate_cash[text] = translation
         if self.debug:
             return translation
-        data_str = await self.redis_client.get('translate_cash')
+        data_str = await handle_redis_data(
+                action='load',
+                key='translate_cash'
+            )
         if data_str:
             self.translate_cash = json.loads(data_str.decode('utf-8'))
         self.translate_cash[text] = translation
         json_data = json.dumps(self.translate_cash, ensure_ascii=False)
-        await self.redis_client.set('translate_cash', json_data)
+        await handle_redis_data(
+            action='save',
+            key='translate_cash',
+            data=json_data
+            )
         return translation
 
     async def main_page(
@@ -611,7 +612,7 @@ class FetchAkty:
                         target_leagues
                     )
                     previous_hash = current_hash
-                    await self.send_and_save_data(leagues_data)
+                    await self.transfer_data(leagues_data)
                 except Exception:
                     await self.send_to_logs(
                         f'Ошибка: {traceback.format_exc()}'
