@@ -14,7 +14,7 @@ class SocketIOClient:
     def __init__(self):
         self.url = SOCKETIO_URL
         self.socket_key = SOCKET_KEY
-        self.sio = socketio.AsyncClient()
+        self.sio = socketio.AsyncSimpleClient()
 
     async def connect(self) -> None:
         """
