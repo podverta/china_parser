@@ -37,9 +37,7 @@ def create_app() -> FastAPI:
         Application startup event. Connect to Redis and Socket.IO.
         """
         await redis_client.connect()
-        # await socketio_client.connect()
         app.state.redis = redis_client.redis
-        # app.state.sio = socketio_client.sio
 
     @app.on_event("shutdown")
     async def shutdown_event():
