@@ -1,6 +1,7 @@
 import json
 from typing import Any, Optional
 from fastapi import FastAPI
+from aioredis import Redis
 
 
 async def handle_redis_data(action: str, key: str, app: FastAPI,
@@ -16,7 +17,7 @@ async def handle_redis_data(action: str, key: str, app: FastAPI,
     """
     try:
         # Access the initialized Redis client
-        redis = app.state.redis
+        redis: Redis = app.state.redis
 
         if action == "save":
             if data is None:
