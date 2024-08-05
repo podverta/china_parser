@@ -63,6 +63,12 @@ class FetchAkty:
         self.driver = self.loop.run_until_complete(
             self.get_driver(headless=HEADLESS)
         )
+        self.time_game_translate = {
+            '第一节': 'I',
+            '第二节': 'II',
+            '第三节': 'III',
+            '第四节': 'IV'
+        }
         self.debug = LOCAL_DEBUG
         self.translate_cash = {}
         self.translator = Translator()
@@ -271,17 +277,10 @@ class FetchAkty:
             List[Dict[str, Any]]: Обновленный список словарей.
         """
         for i, existing_dict in enumerate(existing_list):
-            if (existing_dict['opponent_0']['name'] ==
-                    new_dict['opponent_0']['name'] and
-                    existing_dict['opponent_1']['name'] ==
-                    new_dict['opponent_1']['name']):
-                if (existing_dict['opponent_0'] ==
-                        new_dict['opponent_0'] and
-                        existing_dict['opponent_1'] ==
-                        new_dict['opponent_1']
-                ):
+            if (existing_dict['opponent_0'] == new_dict['opponent_0'] and
+                    existing_dict['opponent_1'] == new_dict['opponent_1']):
+                if existing_dict['rate'] == new_dict['rate']:
                     new_dict['changed'] = False
-
         return new_dict
 
     async def authorization(
@@ -545,9 +544,6 @@ class FetchAkty:
                             total_point_divs) > 0 else ""
                         opponent_1_total_bet = total_bet_div[1].get_text() if len(
                             total_bet_div) > 1 else ""
-                        opponent_1_total_point = total_point_divs[
-                            1].get_text().strip() if len(
-                            total_point_divs) > 1 else ""
                         process_time_span = list_mid_element.find(
                             'span',
                             class_='timer-layout2'
@@ -558,33 +554,28 @@ class FetchAkty:
                             'div',
                             class_='process_name'
                         )
-                        process_time_text = await self.translate_and_cache(
-                            process_time_div_text.get_text()) if \
-                            process_time_div_text else ""
+                        process_time_text = self.time_game_translate.get(
+                            process_time_div_text.get_text().strip(),
+                            '') if process_time_div_text else ""
                         server_time = datetime.now(
-                            tz=ZoneInfo("Europe/Moscow")).strftime(
-                            "%Y-%m-%d %H:%M:%S")
+                            tz=ZoneInfo("Europe/Moscow")
+                        ).strftime("%H:%M:%S")
                         game_info = {
-                            'opponent_0': {
-                                'name': translate_opponent_0_name,
-                                'score': opponent_0_score,
-                                'handicap_bet': opponent_0_handicap_bet,
-                                'handicap_point': opponent_0_handicap_point,
-                                'total_bet': opponent_0_total_bet,
-                                'total_point': opponent_0_total_point,
-                            },
-                            'opponent_1': {
-                                'name': translate_opponent_1_name,
-                                'score': opponent_1_score,
-                                'handicap_bet': opponent_1_handicap_bet,
-                                'handicap_point': opponent_1_handicap_point,
-                                'total_bet': opponent_1_total_bet,
-                                'total_point': opponent_1_total_point,
-                            },
-                            'process_time': process_time,
-                            'process_time_text': process_time_text,
-                            'server_time': server_time,
                             'changed': True,
+                            'opponent_0': translate_opponent_0_name,
+                            'opponent_1': translate_opponent_1_name,
+                            'score_game': f'{opponent_0_score}:{opponent_1_score}',
+                            'time_game': f'{process_time_text} {process_time}',
+                            'rate': {
+                            'total_point': opponent_0_total_point,
+                            'total_bet_0': opponent_0_total_bet,
+                            'total_bet_1': opponent_1_total_bet,
+                            'handicap_point_0': opponent_0_handicap_point,
+                            'handicap_bet_0': opponent_0_handicap_bet,
+                            'handicap_point_1': opponent_1_handicap_point,
+                            'handicap_bet_1': opponent_1_handicap_bet,
+                            },
+                            'server_time': server_time,
                         }
                         if league_name not in leagues_data[NAME_BOOKMAKER]:
                             leagues_data[NAME_BOOKMAKER][league_name] = []

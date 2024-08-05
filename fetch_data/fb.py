@@ -9,6 +9,7 @@ from typing import List, Dict, Any
 from bs4 import BeautifulSoup
 from datetime import datetime
 from dotenv import load_dotenv
+from zoneinfo import ZoneInfo
 from googletrans import Translator
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
@@ -59,6 +60,12 @@ class OddsFetcher:
         self.driver = self.loop.run_until_complete(
             self.get_driver(headless=HEADLESS)
         )
+        self.time_game_translate = {
+            '第一节': 'I',
+            '第二节': 'II',
+            '第三节': 'III',
+            '第四节': 'IV'
+        }
         self.redis_client = None
         self.debug = LOCAL_DEBUG
         self.actions = None
@@ -259,8 +266,7 @@ class OddsFetcher:
 
     async def get_translate(
             self,
-            short_name: str,
-            is_only_translate: bool = False
+            short_name: str
     ) -> str:
         """
         Получает полное название команды, используя кэш или выполнив наведение на элемент.
@@ -268,29 +274,23 @@ class OddsFetcher:
         translation = ""
         if short_name in self.translate_cash.keys():
             return self.translate_cash[short_name]
-        if not is_only_translate:
-            time.sleep(1)
-            team1_element = self.driver.find_element(By.XPATH, f"//*[text()='{short_name}']")
-            if self.actions is None:
-                self.actions = ActionChains(self.driver)
-            self.actions.move_to_element(team1_element).perform()
-            time.sleep(2)
-            full_name_element = self.driver.execute_script("""
-                       var tooltip = document.querySelector('div[role="complementary"].q-tooltip--style.q-position-engine.no-pointer-events[style*="visibility: visible"]');
-                       if (tooltip) {
-                           return tooltip.textContent.trim();
-                       } else {
-                           return null;
-                       }
-                   """)
-            if full_name_element:
-                translation = self.translator.translate(
-                    full_name_element, src='zh-cn',
-                    dest='ru'
-                ).text
-        if is_only_translate:
+        time.sleep(1)
+        team1_element = self.driver.find_element(By.XPATH, f"//*[text()='{short_name}']")
+        if self.actions is None:
+            self.actions = ActionChains(self.driver)
+        self.actions.move_to_element(team1_element).perform()
+        time.sleep(2)
+        full_name_element = self.driver.execute_script("""
+                   var tooltip = document.querySelector('div[role="complementary"].q-tooltip--style.q-position-engine.no-pointer-events[style*="visibility: visible"]');
+                   if (tooltip) {
+                       return tooltip.textContent.trim();
+                   } else {
+                       return null;
+                   }
+               """)
+        if full_name_element:
             translation = self.translator.translate(
-                short_name, src='zh-cn',
+                full_name_element, src='zh-cn',
                 dest='ru'
             ).text
         if translation:
@@ -308,7 +308,7 @@ class OddsFetcher:
     async def check_changed_dict(
             existing_list: List[Dict[str, Any]],
             new_dict: Dict[str, Any],
-    )-> Dict:
+    ) -> Dict:
         """
         Обновляет список словарей, если конкретный словарь изменился, или добавляет его, если его нет.
 
@@ -320,17 +320,10 @@ class OddsFetcher:
             List[Dict[str, Any]]: Обновленный список словарей.
         """
         for i, existing_dict in enumerate(existing_list):
-            if (existing_dict['opponent_0']['name'] ==
-                    new_dict['opponent_0']['name'] and
-                    existing_dict['opponent_1']['name'] ==
-                    new_dict['opponent_1']['name']):
-                if (existing_dict['opponent_0'] ==
-                    new_dict['opponent_0'] and
-                    existing_dict['opponent_1'] ==
-                    new_dict['opponent_1']
-                ):
+            if (existing_dict['opponent_0'] == new_dict['opponent_0'] and
+                    existing_dict['opponent_1'] == new_dict['opponent_1']):
+                if existing_dict['rate'] == new_dict['rate']:
                     new_dict['changed'] = False
-
         return new_dict
 
     async def collect_odds_data(
@@ -367,60 +360,50 @@ class OddsFetcher:
 
                         short_team1_name = team_names[0].text.strip()
                         short_team2_name = team_names[1].text.strip()
-                        full_team1_name = await self.get_translate(
+                        translate_opponent_0_name = await self.get_translate(
                             short_team1_name) if short_team1_name != '' else ''
-                        full_team2_name = await self.get_translate(
+                        translate_opponent_1_name = await self.get_translate(
                             short_team2_name) if short_team1_name != '' else ''
                         scores = match.select('.match-score p span')
                         if len(scores) != 2:
                             continue
-
-                        score1 = scores[0].text
-                        score2 = scores[1].text
-                        process_time_text_translate = ''
-                        process_time = ''
+                        opponent_0_score = scores[0].text
+                        opponent_1_score = scores[1].text
+                        game_info = {
+                            'changed': True,
+                            'opponent_0': translate_opponent_0_name,
+                            'opponent_1': translate_opponent_1_name,
+                            'score_game': f'{opponent_0_score}:{opponent_1_score}',
+                            'time_game': '',
+                            'rate': {
+                                'total_point': '',
+                                'total_bet_0': '',
+                                'total_bet_1': '',
+                                'handicap_point_0': '',
+                                'handicap_bet_0': '',
+                                'handicap_point_1': '',
+                                'handicap_bet_1': '',
+                            },
+                            'server_time': '',
+                        }
                         process_time_elements = match.select('.time')
                         if process_time_elements:
                             process_time_text_element = process_time_elements[
                                 0].select_one('.match-left-text.font-din')
-                            if process_time_text_element and process_time_text_element.text.strip():
-                                process_time_text_translate = await self.get_translate(
-                                    process_time_text_element.text.strip(),
-                                    is_only_translate=True
-                                )
+                            process_time_text = self.time_game_translate.get(
+                                process_time_text_element.get_text().strip(),
+                                '') if process_time_text_element else ""
+                            game_info['time_game'] += process_time_text
 
                             process_time_element = process_time_elements[
                                 0].select_one('.match-left-time.font-din')
 
                             if process_time_element and process_time_element.text.strip():
                                 process_time = process_time_element.text.strip()
-
-                        server_time = datetime.now().strftime(
-                            '%Y-%m-%d %H:%M:%S'
-                        )
-
-                        odds_data = {
-                            'opponent_0': {
-                                'name': full_team1_name,
-                                'score': score1,
-                                'handicap_bet': '',
-                                'handicap_point': '',
-                                'total_bet': '',
-                                'total_point': ''
-                            },
-                            'opponent_1': {
-                                'name': full_team2_name,
-                                'score': score2,
-                                'handicap_bet': '',
-                                'handicap_point': '',
-                                'total_bet': '',
-                                'total_point': ''
-                            },
-                            'process_time_text': process_time_text_translate,
-                            'process_time': process_time,
-                            'server_time': server_time,
-                            'changed': True,
-                        }
+                                game_info['time_game'] += ' ' + process_time
+                        game_info['server_time'] = datetime.now(
+                            tz=ZoneInfo("Europe/Moscow")
+                        ).strftime("%H:%M:%S")
                         odds_boxes = match.select('.home-match-odds-box')
                         found_handicap = False
                         found_ou = False
@@ -430,46 +413,37 @@ class OddsFetcher:
                                 found_handicap = True
                                 odds_items = odds_box.select('.team-odds-list .value.font-din')
                                 if len(odds_items) >= 2:
-                                    odds_data['opponent_0']['handicap_bet'] = (
-                                        odds_items[0].text)
-                                    odds_data['opponent_1']['handicap_bet'] = (
-                                        odds_items[1].text)
+                                    game_info['rate']['handicap_bet_0'] = odds_items[0].text
+                                    game_info['rate']['handicap_bet_1'] = odds_items[1].text
                                 handicap_points = odds_box.select('.team-odds-list .prefix-text.text-grey-disable')
                                 if len(handicap_points) >=2:
-                                    odds_data['opponent_0']['handicap_point'] = (
-                                        handicap_points[0].text)
-                                    odds_data['opponent_1']['handicap_point'] = (
-                                        handicap_points[1].text)
+                                    game_info['rate']['handicap_point_0'] = handicap_points[0].text
+                                    game_info['rate']['handicap_point_1'] = handicap_points[1].text
                             elif ('match-full-odds-total' in category and
                                   not found_ou):
                                 found_ou = True
                                 odds_items = odds_box.select('.team-odds-list .value.font-din')
                                 if len(odds_items) >= 2:
-                                    odds_data['opponent_0']['total_bet'] = odds_items[0].text
-                                    odds_data['opponent_1']['total_bet'] = odds_items[1].text
+                                    game_info['rate']['total_bet_0'] = odds_items[0].text
+                                    game_info['rate']['total_bet_1'] = odds_items[1].text
                                 total_points = odds_box.select(
                                     '.team-odds-list .prefix-text.text-grey-disable')
                                 if len(total_points) >= 2:
                                     point_0 = total_points[0].text
-                                    point_1 = total_points[1].text
                                     point_0_cleared = re.sub(
                                         r'[大小 ]', '', point_0
                                     )
-                                    point_1_cleared = re.sub(
-                                        r'[大小 ]', '', point_1
-                                    )
-                                    odds_data['opponent_0'][
-                                        'total_point'] = point_0_cleared
-                                    odds_data['opponent_1'][
-                                        'total_point'] = point_1_cleared
-
+                                    game_info['rate'][
+                                        'total_point'] = point_0_cleared if \
+                                            point_0_cleared else \
+                                            game_info['rate']['total_point']
                         if (self.previous_data and liga_name_translate
                                 in self.previous_data.get("fb.com", {})):
                             odds_data = await self.check_changed_dict(
                                 self.previous_data["fb.com"][liga_name_translate],
-                                odds_data,
+                                game_info,
                             )
-                        active_matches["fb.com"][liga_name_translate].append(odds_data)
+                        active_matches["fb.com"][liga_name_translate].append(game_info)
             if self.debug:
                 await self.send_to_logs(f'{active_matches}')
             await self.send_and_save_data(active_matches)
