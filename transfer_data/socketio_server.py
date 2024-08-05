@@ -18,7 +18,6 @@ origins = [
 
 sio = socketio.AsyncServer(
     async_mode="asgi",
-    allow_upgrades=False,
     cors_allowed_origins=origins,
     namespaces='/socket.io',
     max_http_buffer_size=10 * 1024 * 1024  # 10 MB
