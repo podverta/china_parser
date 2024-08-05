@@ -1,38 +1,40 @@
 import json
 from typing import Any, Optional
-from aioredis import Redis
-from app.main import app
+from fastapi import FastAPI
 
-async def handle_redis_data(action: str, key: str, data: Optional[Any] = None) -> Optional[Any]:
+
+async def handle_redis_data(action: str, key: str, app: FastAPI,
+                            data: Optional[Any] = None) -> Optional[Any]:
     """
-    Управляет данными в Redis. Поддерживает действия "load" и "save".
+    Handles saving or loading data from Redis based on the action.
 
-    :param action: Действие ("load" или "save").
-    :param key: Ключ для сохранения или загрузки данных.
-    :param data: Данные для сохранения (необязательно при загрузке).
-    :return: Загруженные данные (если действие "load"), иначе None.
+    :param action: Action ('load' or 'save').
+    :param key: Key for saving or loading data.
+    :param app: FastAPI app instance for accessing state.
+    :param data: Data to save (if action is 'save').
+    :return: Loaded data (if action is 'load'), otherwise None.
     """
     try:
-        # Получаем доступ к инициализированному клиенту Redis
-        redis: Redis = app.state.redis
+        # Access the initialized Redis client
+        redis = app.state.redis
 
         if action == "save":
             if data is None:
                 raise ValueError("Data must be provided for 'save' action")
 
-            # Преобразование данных в JSON для сохранения
+            # Convert data to JSON
             json_data = json.dumps(data, ensure_ascii=False)
             await redis.set(key, json_data)
             print(f"Data saved to Redis with key: {key}")
 
         elif action == "load":
-            # Загрузка данных из Redis
+            # Load data from Redis
             json_data = await redis.get(key)
             if json_data is None:
                 print(f"No data found for key: {key}")
                 return None
 
-            # Преобразование данных из JSON
+            # Convert data from JSON
             data = json.loads(json_data.decode('utf-8'))
             print(f"Data loaded from Redis with key: {key}")
             return data
@@ -43,3 +45,4 @@ async def handle_redis_data(action: str, key: str, data: Optional[Any] = None) -
     except Exception as e:
         print(f"Error handling Redis data: {str(e)}")
         return None
+

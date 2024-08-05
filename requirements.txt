@@ -13,4 +13,5 @@ celery==5.4.0
 python-socketio==5.11.3
 aioredis==2.0.1
 aiohttp==3.9.5
+aiofiles==24.1.0
 googletrans==4.0.0-rc1

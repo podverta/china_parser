@@ -9,9 +9,9 @@ from services_app.socketio_client import SocketIOClient
 
 def create_app() -> FastAPI:
     """
-    Создает и настраивает объект приложения FastAPI.
+    Creates and configures the FastAPI application instance.
 
-    :return: Объект приложения FastAPI.
+    :return: FastAPI application instance.
     """
     middleware = [
         Middleware(
@@ -28,13 +28,13 @@ def create_app() -> FastAPI:
     redis_client = RedisClient()
     socketio_client = SocketIOClient()
 
-    # Монтируем приложение SocketIO в FastAPI
+    # Mount SocketIO application into FastAPI
     app.mount("/socket.io", socket_app)
 
     @app.on_event("startup")
     async def startup_event():
         """
-        Событие запуска приложения. Подключение к Redis и Socket.IO.
+        Application startup event. Connect to Redis and Socket.IO.
         """
         await redis_client.connect()
         await socketio_client.connect()
@@ -44,7 +44,7 @@ def create_app() -> FastAPI:
     @app.on_event("shutdown")
     async def shutdown_event():
         """
-        Событие завершения работы приложения. Отключение от Redis и Socket.IO.
+        Application shutdown event. Disconnect from Redis and Socket.IO.
         """
         await redis_client.disconnect()
         await socketio_client.disconnect()
