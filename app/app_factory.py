@@ -1,5 +1,3 @@
-# app_factory.py
-
 from fastapi import FastAPI
 from app.router import route
 from transfer_data.socketio_server import app as socket_app, origins
