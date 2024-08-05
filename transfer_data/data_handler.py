@@ -2,7 +2,7 @@ import json
 from typing import Optional
 from fastapi import FastAPI
 from aioredis import Redis
-from socketio import AsyncClient
+from transfer_data.socketio_server import sio
 
 async def send_and_save_data(data: str, service_name: str, app: FastAPI) -> None:
     """
@@ -15,7 +15,6 @@ async def send_and_save_data(data: str, service_name: str, app: FastAPI) -> None
     try:
         # Access initialized clients
         redis: Redis = app.state.redis
-        sio: AsyncClient = app.state.sio
 
         # Convert data to JSON
         json_data = json.dumps(data, ensure_ascii=False)
