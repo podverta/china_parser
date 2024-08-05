@@ -25,11 +25,11 @@ def create_app() -> FastAPI:
     app = FastAPI(middleware=middleware)
     app.include_router(route)
 
-    redis_client = RedisClient()
-    socketio_client = SocketIOClient()
-
     # Mount SocketIO application into FastAPI
     app.mount("/socket.io", socket_app)
+
+    redis_client = RedisClient()
+    socketio_client = SocketIOClient()
 
     @app.on_event("startup")
     async def startup_event():
