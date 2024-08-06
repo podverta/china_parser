@@ -1,8 +1,9 @@
-import asyncio
+import aiofiles
+from typing import Any
 from fastapi import APIRouter, HTTPException
 from services_app.tasks import parse_some_data
 from app.schema import ParserRequest
-import aiofiles
+from transfer_data.redis_client import RedisClient
 
 route = APIRouter()
 # Удаляем loop = asyncio.get_event_loop() так как оно не используется
@@ -74,3 +75,24 @@ async def get_fb_logs():
         raise HTTPException(status_code=404, detail="Log file not found")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading log file: {str(e)}")
+
+@route.get("/get-last-items/{key}")
+async def get_last_items(key: str, count: int = 300) -> List[Any]:
+    """
+    Получает последние элементы из списка Redis.
+
+    Args:
+        key (str): Ключ для загрузки данных.
+        count (int): Количество элементов для загрузки. По умолчанию 300.
+
+    Returns:
+        List[Any]: Список последних элементов.
+    """
+    try:
+        redis_client = RedisClient()
+        await redis_client.connect()
+        items = await redis_client.get_last_items(key, count)
+        await redis_client.close()
+        return items
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

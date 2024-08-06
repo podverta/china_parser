@@ -1,5 +1,6 @@
 import os
 import aioredis
+from typing import Any, Optional, List
 from dotenv import load_dotenv
 from typing import Any, Optional
 
@@ -22,6 +23,8 @@ class RedisClient:
         close(): Закрывает соединение с Redis.
         set_data(key: str, value: Any): Сохраняет данные в Redis по ключу.
         get_data(key: str) -> Optional[Any]: Загружает данные из Redis по ключу.
+        add_to_list(key: str, value: Any, max_len: int): Добавляет данные в список Redis.
+        get_last_items(key: str, count: int) -> List[Any]: Получает последние элементы из списка Redis.
     """
 
     def __init__(self, redis_url: str = REDIS_URL):
@@ -62,3 +65,34 @@ class RedisClient:
         if self.pool:
             async with aioredis.Redis(connection_pool=self.pool) as redis:
                 return await redis.get(key)
+
+    async def add_to_list(self, key: str, value: Any, max_len: int = 300):
+        """
+        Добавляет данные в список Redis. Если размер списка превышает max_len, удаляет старые элементы.
+
+        Args:
+            key (str): Ключ для сохранения данных.
+            value (Any): Данные для сохранения.
+            max_len (int): Максимальное количество элементов в списке. По умолчанию 300.
+        """
+        if self.pool:
+            async with aioredis.Redis(connection_pool=self.pool) as redis:
+                # Добавляем элемент в конец списка
+                await redis.rpush(key, value)
+                # Обрезаем список до max_len элементов
+                await redis.ltrim(key, -max_len, -1)
+
+    async def get_last_items(self, key: str, count: int = 300) -> List[Any]:
+        """
+        Получает последние элементы из списка Redis.
+
+        Args:
+            key (str): Ключ для загрузки данных.
+            count (int): Количество элементов для загрузки. По умолчанию 300.
+
+        Returns:
+            List[Any]: Список последних элементов.
+        """
+        if self.pool:
+            async with aioredis.Redis(connection_pool=self.pool) as redis:
+                return await redis.lrange(key, -count, -1)
