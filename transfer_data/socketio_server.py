@@ -8,15 +8,15 @@ load_dotenv()
 
 # Настройка логгера
 logger = setup_logger('socketio', 'socketio_debug.log')
-origins = ['*']
-# origins = [
-#     "http://api.parserchina.com",
-#     "http://parserchina.com",
-#     "https://api.parserchina.com",
-#     "https://parserchina.com",
-#     "http://localhost",
-#     "http://10.10.10.55",
-# ]
+
+origins = [
+    "http://api.parserchina.com",
+    "http://parserchina.com",
+    "https://api.parserchina.com",
+    "https://parserchina.com",
+    "http://localhost",
+    "http://10.10.10.55",
+]
 
 sio = socketio.AsyncServer(
     async_mode="asgi",
