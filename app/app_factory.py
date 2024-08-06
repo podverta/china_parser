@@ -28,23 +28,4 @@ def create_app() -> FastAPI:
     # Mount SocketIO application into FastAPI
     app.mount("/socket.io", socket_app)
 
-    redis_client = RedisClient()
-    # socketio_client = SocketIOClient()
-
-    @app.on_event("startup")
-    async def startup_event():
-        """
-        Application startup event. Connect to Redis and Socket.IO.
-        """
-        await redis_client.connect()
-        app.state.redis = redis_client.redis
-
-    @app.on_event("shutdown")
-    async def shutdown_event():
-        """
-        Application shutdown event. Disconnect from Redis and Socket.IO.
-        """
-        await redis_client.disconnect()
-        # await socketio_client.disconnect()
-
     return app
