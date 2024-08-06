@@ -3,8 +3,9 @@ from typing import Optional
 from fastapi import FastAPI
 from aioredis import Redis
 from transfer_data.socketio_server import sio
+from app.main import app
 
-async def send_and_save_data(data: str, service_name: str, app: FastAPI) -> None:
+async def send_and_save_data(data: str, service_name: str) -> None:
     """
     Sends data to the Socket.IO server and saves it in Redis.
 
@@ -33,7 +34,6 @@ async def send_and_save_data(data: str, service_name: str, app: FastAPI) -> None
 async def set_load_data_redis(
         action: str,
         key: str,
-        app: FastAPI,
         data: Optional[dict] = None
 ) -> Optional[dict]:
     """

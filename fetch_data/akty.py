@@ -22,8 +22,8 @@ from selenium.webdriver.common.keys import Keys
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from app.logging import setup_logger
-from transfer_data.data_handler import send_and_save_data
-from transfer_data.redis_handler import handle_redis_data
+from transfer_data.data_handler import send_and_save_data, set_load_data_redis
+
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
@@ -109,7 +109,7 @@ class FetchAkty:
         if self.debug:
             return None
         try:
-            data_str = await handle_redis_data(
+            data_str = await set_load_data_redis(
                 action='load',
                 key='translate_cash'
             )
@@ -317,7 +317,7 @@ class FetchAkty:
         self.translate_cash[text] = translation
         if self.debug:
             return translation
-        data_str = await handle_redis_data(
+        data_str = await set_load_data_redis(
                 action='load',
                 key='translate_cash'
             )
@@ -325,7 +325,7 @@ class FetchAkty:
             self.translate_cash = json.loads(data_str.decode('utf-8'))
         self.translate_cash[text] = translation
         json_data = json.dumps(self.translate_cash, ensure_ascii=False)
-        await handle_redis_data(
+        await set_load_data_redis(
             action='save',
             key='translate_cash',
             data=json_data

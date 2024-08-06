@@ -2,9 +2,10 @@ import json
 from typing import Any, Optional
 from fastapi import FastAPI
 from aioredis import Redis
-from app.main import app
 
-async def handle_redis_data(action: str, key: str, data: Optional[Any] = None) -> Optional[Any]:
+
+async def handle_redis_data(action: str, key: str, app: FastAPI,
+                            data: Optional[Any] = None) -> Optional[Any]:
     """
     Handles saving or loading data from Redis based on the action.
 
