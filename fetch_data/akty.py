@@ -98,9 +98,7 @@ class FetchAkty:
 
                         # Сохраняем данные в Redis
                         await self.redis_client.add_to_list(key, json_data)
-
-            return {"message": "Все игры успешно сохранены в Redis"}
-
+                        await self.send_to_logs(f'Сохранение данных: {key} - {json_data}')
         except Exception as e:
             await self.send_to_logs(f'Ошибка при сохранении данных: {str(e)}')
 
