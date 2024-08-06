@@ -75,6 +75,36 @@ class FetchAkty:
         self.action = ActionChains(self.driver)
         self.previous_data = {}
 
+    async def save_games(self, data: dict):
+        """
+        Сохраняет игры по отдельным ключам в Redis.
+
+        Args:
+            data (dict): Данные в формате JSON для сохранения.
+        """
+        try:
+            # Перемещение по JSON-объекту
+            for site, leagues in data.items():
+                for league, games in leagues.items():
+                    for game in games:
+                        opponent_0 = game["opponent_0"]
+                        opponent_1 = game["opponent_1"]
+
+                        # Формируем ключ
+                        key = f"{site}, {league}, {opponent_0}, {opponent_1}"
+
+                        # Преобразуем данные в JSON
+                        json_data = json.dumps(game, ensure_ascii=False)
+
+                        # Сохраняем данные в Redis
+                        await self.redis_client.add_to_list(key, json_data)
+
+            return {"message": "Все игры успешно сохранены в Redis"}
+
+        except Exception as e:
+            await self.send_to_logs(f'Ошибка при сохранении данных: {str(e)}')
+
+
     async def send_and_save_data(
             self,
             data: dict
@@ -98,7 +128,7 @@ class FetchAkty:
             # Отправляем данные на Socket.IO сервер напрямую
             await self.sio.emit('message', json_data)
             # Сохраняем данные в Redis
-            await self.redis_client.set_data('akty_data', json_data)
+            await self.save_games(data)
         except Exception as e:
             await self.send_to_logs(f'Ошибка при отправке данных: {str(e)}')
 
@@ -120,7 +150,6 @@ class FetchAkty:
         except Exception as e:
             print(f"Error initializing async components: {e}")
             raise
-
 
     async def get_driver(
             self,

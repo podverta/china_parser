@@ -1,4 +1,5 @@
 import aiofiles
+import json
 from typing import Any, List
 from fastapi import APIRouter, HTTPException
 from services_app.tasks import parse_some_data
@@ -76,23 +77,35 @@ async def get_fb_logs():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading log file: {str(e)}")
 
-@route.get("/get-last-items/{key}")
-async def get_last_items(key: str, count: int = 300) -> List[Any]:
+@route.get("/get-game/{site}/{league}/{opponent_0}/{opponent_1}")
+async def get_game(
+        site: str,
+        league: str,
+        opponent_0: str,
+        opponent_1: str
+) -> dict:
     """
-    Получает последние элементы из списка Redis.
+     Получает данные игры по составному ключу.
 
-    Args:
-        key (str): Ключ для загрузки данных.
-        count (int): Количество элементов для загрузки. По умолчанию 300.
+     Args:
+         site (str): Сайт, откуда пришли данные.
+         league (str): Название лиги.
+         opponent_0 (str): Имя первой команды.
+         opponent_1 (str): Имя второй команды.
 
-    Returns:
-        List[Any]: Список последних элементов.
-    """
+     Returns:
+         dict: Данные игры или сообщение об ошибке, если игра не найдена.
+     """
     try:
         redis_client = RedisClient()
         await redis_client.connect()
-        items = await redis_client.get_last_items(key, count)
-        await redis_client.close()
-        return items
+        key = f"{site}, {league}, {opponent_0}, {opponent_1}"
+        data = await redis_client.get_last_items(key)
+
+        if data is None:
+            raise HTTPException(status_code=404, detail="Игра не найдена")
+        game_data = json.loads(data)
+        return game_data
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
