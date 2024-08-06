@@ -4,7 +4,6 @@ import re
 import socketio
 import json
 import asyncio
-import redis.asyncio as aioredis
 from typing import List, Dict, Any
 from bs4 import BeautifulSoup
 from datetime import datetime
@@ -19,6 +18,7 @@ from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
 from app.logging import setup_logger
 from selenium.webdriver.common.action_chains import ActionChains
+from transfer_data.redis_client import RedisClient
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
@@ -169,7 +169,7 @@ class OddsFetcher:
             # Отправляем данные на Socket.IO сервер напрямую
             await self.sio.emit('message', json_data)
             # Сохраняем данные в Redis
-            await self.redis_client.set('akty_data', json_data)
+            await self.redis_client.set_data('akty_data', json_data)
         except Exception as e:
             await self.send_to_logs(f'Ошибка при отправке данных: {str(e)}')
 
@@ -183,12 +183,11 @@ class OddsFetcher:
             await self.send_to_logs(
                 f"Connecting to Redis at {REDIS_URL}"
             )
-            self.redis_client = await aioredis.from_url(REDIS_URL)
             await self.send_to_logs(
                 f"Connecting to Socket.IO server at {SOCKETIO_URL}"
             )
             await self.sio.connect(SOCKETIO_URL, auth={'socket_key': SOCKET_KEY})
-            data_str = await self.redis_client.get('translate_cash')
+            data_str = await self.redis_client.get_data('translate_cash')
             if data_str:
                 self.translate_cash = json.loads(data_str.decode('utf-8'))
         except Exception as e:
@@ -298,7 +297,7 @@ class OddsFetcher:
             if self.debug:
                 return translation
             json_data = json.dumps(self.translate_cash, ensure_ascii=False)
-            await self.redis_client.set('translate_cash', json_data)
+            await self.redis_client.set_data('translate_cash', json_data)
             await self.send_to_logs(f"Перевод текста {short_name}"
                                     f" - {translation}")
             return translation
@@ -455,11 +454,11 @@ class OddsFetcher:
         if self.driver:
             self.driver.quit()
             await self.send_to_logs("Драйвер был закрыт принудительно")
+        if self.redis_client:
+            await self.redis_client.close()
 
     def __del__(self):
-        if self.driver:
-            self.driver.quit()
-            print("Драйвер закрыт")
+        asyncio.run(fetcher.close())
 
     async def run(self, *args, **kwargs):
         """
@@ -474,6 +473,8 @@ class OddsFetcher:
 
         while attempt < max_retries:
             try:
+                self.redis_client = RedisClient()
+                await self.redis_client.connect()
                 await self.init_async_components()
                 leagues = kwargs.get('leagues', LEAGUES)
                 await self.get_url()
@@ -496,7 +497,7 @@ class OddsFetcher:
                     break
             finally:
                 self.driver.quit()
-
+                await self.redis_client.close()
 
 if __name__ == "__main__":
     LOCAL_DEBUG = 1

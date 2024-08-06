@@ -5,7 +5,6 @@ import socketio
 import hashlib
 import traceback
 import json
-import redis.asyncio as aioredis
 import undetected_chromedriver as uc
 from typing import List, Dict, Any
 from googletrans import Translator
@@ -110,9 +109,6 @@ class FetchAkty:
         if self.debug:
             return None
         try:
-            await self.send_to_logs(
-                f"Connecting to Redis at {REDIS_URL}"
-            )
             await self.send_to_logs(
                 f"Connecting to Socket.IO server at {SOCKETIO_URL}"
             )
