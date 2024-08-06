@@ -105,12 +105,12 @@ async def get_game(
                f"{opponent_0.lower()}, {opponent_1.lower()}")
 
         # Получаем данные из Redis
-        data = await redis_client.get_data(key)
+        data = await redis_client.get_last_items(key)
 
-        if data is None:
+        if not data:
             raise HTTPException(status_code=404, detail="Игра не найдена")
-        game_data = json.loads(data)
-        return game_data
+
+        return {"games": data}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
