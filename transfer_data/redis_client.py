@@ -1,4 +1,5 @@
 import os
+import json
 import aioredis
 from typing import Any, Optional, List
 from dotenv import load_dotenv
@@ -98,4 +99,6 @@ class RedisClient:
         """
         if self.pool:
             async with aioredis.Redis(connection_pool=self.pool) as redis:
-                return await redis.lrange(key, -count, -1)
+                items = await redis.lrange(key, -count, -1)
+                # Декодируем байты и преобразуем в JSON объекты
+                return [json.loads(item.decode("utf-8")) for item in items]
