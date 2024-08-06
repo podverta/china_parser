@@ -50,10 +50,15 @@ async def connect(sid: str, environ: dict, auth: dict):
     :param environ: Среда окружения.
     :param auth: Данные для авторизации.
     """
+    # Извлечение IP-адреса из окружения
+    ip_address = environ.get('REMOTE_ADDR', 'Неизвестный IP')
+
+    # Проверка авторизации
     if auth is None or 'socket_key' not in auth or auth['socket_key'] != SOCKET_KEY:
-        await send_to_logs(f"Неудачная попытка подключения: {sid}, {auth}")
+        await send_to_logs(f"Неудачная попытка подключения: SID={sid}, IP={ip_address}, AUTH={auth}")
         return False  # Отклонить подключение
-    await send_to_logs(f"Клиент подключился: {sid}")
+
+    await send_to_logs(f"Клиент подключился: SID={sid}, IP={ip_address}")
 
 @sio.on('disconnect')
 async def disconnect(sid: str):
