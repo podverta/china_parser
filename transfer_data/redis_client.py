@@ -64,7 +64,10 @@ class RedisClient:
         """
         if self.pool:
             async with aioredis.Redis(connection_pool=self.pool) as redis:
-                return await redis.get(key)
+                data = await redis.get(key)
+                if data:
+                    return data.decode("utf-8")
+                return None
 
     async def add_to_list(self, key: str, value: Any, max_len: int = 300):
         """

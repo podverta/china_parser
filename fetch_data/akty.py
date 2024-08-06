@@ -341,7 +341,7 @@ class FetchAkty:
             return translation
         data_str = await self.redis_client.get_data('translate_cash')
         if data_str:
-            self.translate_cash = json.loads(data_str.decode('utf-8'))
+            self.translate_cash = json.loads(data_str)
         self.translate_cash[text] = translation
         json_data = json.dumps(self.translate_cash, ensure_ascii=False)
         await self.redis_client.set_data('translate_cash', json_data)

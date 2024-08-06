@@ -99,8 +99,13 @@ async def get_game(
     try:
         redis_client = RedisClient()
         await redis_client.connect()
-        key = f"{site}, {league}, {opponent_0}, {opponent_1}"
-        data = await redis_client.get_last_items(key)
+
+        # Формируем ключ в нижнем регистре
+        key = (f"{site.lower()}, {league.lower()}, "
+               f"{opponent_0.lower()}, {opponent_1.lower()}")
+
+        # Получаем данные из Redis
+        data = await redis_client.get_data(key)
 
         if data is None:
             raise HTTPException(status_code=404, detail="Игра не найдена")
