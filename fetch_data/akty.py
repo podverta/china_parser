@@ -91,7 +91,8 @@ class FetchAkty:
                         opponent_1 = game["opponent_1"]
 
                         # Формируем ключ
-                        key = f"{site}, {league}, {opponent_0}, {opponent_1}"
+                        key = (f"{site.lower()}, {league.lower()}, "
+                               f"{opponent_0.lower()}, {opponent_1.lower()}")
 
                         # Преобразуем данные в JSON
                         json_data = json.dumps(game, ensure_ascii=False)
