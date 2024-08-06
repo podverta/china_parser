@@ -1,5 +1,4 @@
 import os
-import json
 import aioredis
 from typing import Any, Optional, List
 from dotenv import load_dotenv
@@ -51,7 +50,7 @@ class RedisClient:
         """
         if self.pool:
             async with aioredis.Redis(connection_pool=self.pool) as redis:
-                await redis.set(key.encode('utf-8'), json.dumps(value, ensure_ascii=False))
+                await redis.set(key, value)
 
     async def get_data(self, key: str) -> Optional[Any]:
         """
@@ -65,8 +64,7 @@ class RedisClient:
         """
         if self.pool:
             async with aioredis.Redis(connection_pool=self.pool) as redis:
-                result = await redis.get(key.encode('utf-8'))
-                return json.loads(result) if result else None
+                return await redis.get(key)
 
     async def add_to_list(self, key: str, value: Any, max_len: int = 300):
         """
@@ -79,8 +77,10 @@ class RedisClient:
         """
         if self.pool:
             async with aioredis.Redis(connection_pool=self.pool) as redis:
-                await redis.rpush(key.encode('utf-8'), json.dumps(value, ensure_ascii=False))
-                await redis.ltrim(key.encode('utf-8'), -max_len, -1)
+                # Добавляем элемент в конец списка
+                await redis.rpush(key, value)
+                # Обрезаем список до max_len элементов
+                await redis.ltrim(key, -max_len, -1)
 
     async def get_last_items(self, key: str, count: int = 300) -> List[Any]:
         """
@@ -95,5 +95,4 @@ class RedisClient:
         """
         if self.pool:
             async with aioredis.Redis(connection_pool=self.pool) as redis:
-                result = await redis.lrange(key.encode('utf-8'), -count, -1)
-                return [json.loads(item) for item in result] if result else []
+                return await redis.lrange(key, -count, -1)

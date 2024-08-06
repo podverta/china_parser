@@ -333,7 +333,7 @@ class FetchAkty:
 
         translation = self.translator.translate(
             text, src='zh-cn',
-            dest='ru'
+            dest='en'
         ).text
         await self.send_to_logs(f"Перевод текста {text} - {translation}")
         self.translate_cash[text] = translation

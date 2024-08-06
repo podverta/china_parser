@@ -317,7 +317,7 @@ class OddsFetcher:
         if full_name_element:
             translation = self.translator.translate(
                 full_name_element, src='zh-cn',
-                dest='ru'
+                dest='en'
             ).text
         if translation:
             self.translate_cash[short_name] = translation
