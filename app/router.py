@@ -1,5 +1,5 @@
 import aiofiles
-from typing import Any
+from typing import Any, List
 from fastapi import APIRouter, HTTPException
 from services_app.tasks import parse_some_data
 from app.schema import ParserRequest
