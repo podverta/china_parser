@@ -14,8 +14,8 @@ origins = [
     "http://parserchina.com",
     "https://api.parserchina.com",
     "https://parserchina.com",
-    "http://10.10.10.34:8123",
-    "https://10.10.10.34:8123",
+    "http://localhost",
+    "http://10.10.10.55",
 ]
 
 sio = socketio.AsyncServer(
