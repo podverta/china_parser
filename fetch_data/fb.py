@@ -178,7 +178,7 @@ class OddsFetcher:
                 opponent_1 = data.get("opponent_1", "").lower()
 
                 # Формируем ключ для сохранения в Redis
-                key = f"fb.com, {liga_name.lower()}, {opponent_0}, {opponent_1}"
+                key = f"fb.com, {liga_name.lower()}, {opponent_0}, {opponent_1}".replace('\n', '')
 
                 # Подготавливаем данные для сохранения
                 data_rate = data.get('rate', {})
