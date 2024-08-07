@@ -484,7 +484,7 @@ class OddsFetcher:
                                             game_info['rate']['total_point']
                         if (self.previous_data and liga_name_translate
                                 in self.previous_data.get("fb.com", {})):
-                            odds_data = await self.check_changed_dict(
+                            game_info = await self.check_changed_dict(
                                 self.previous_data["fb.com"][liga_name_translate],
                                 game_info,
                                 liga_name_translate
