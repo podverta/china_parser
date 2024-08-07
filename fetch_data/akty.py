@@ -145,7 +145,7 @@ class FetchAkty:
                                    auth={'socket_key': SOCKET_KEY})
             data_str = await self.redis_client.get_data('translate_cash')
             if data_str:
-                self.translate_cash = json.loads(data_str.decode('utf-8'))
+                self.translate_cash = json.loads(data_str)
         except Exception as e:
             print(f"Error initializing async components: {e}")
             raise
