@@ -82,7 +82,7 @@ class RedisClient:
         if self.pool:
             async with aioredis.Redis(connection_pool=self.pool) as redis:
                 # Добавляем элемент в конец списка
-                await redis.rpush(key, value)
+                await redis.lpush(key, value)
                 # Обрезаем список до max_len элементов
                 await redis.ltrim(key, -max_len, -1)
 
@@ -99,6 +99,6 @@ class RedisClient:
         """
         if self.pool:
             async with aioredis.Redis(connection_pool=self.pool) as redis:
-                items = await redis.lrange(key, -count, -1)
+                items = await redis.lrange(key, 0, count - 1)
                 # Декодируем байты и преобразуем в JSON объекты
                 return [json.loads(item.decode("utf-8")) for item in items]

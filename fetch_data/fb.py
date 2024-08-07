@@ -157,13 +157,17 @@ class OddsFetcher:
             liga_name (str): Наименование лиги для сохранения в redis
         """
         try:
+            if self.debug:
+                return
             opponent_0 = data["opponent_0"]
             opponent_1 = data["opponent_1"]
             # Формируем ключ
             key = (f"fb.com, {liga_name.lower()}, "
                    f"{opponent_0.lower()}, {opponent_1.lower()}")
             # Преобразуем данные в JSON
-            json_data = json.dumps(data, ensure_ascii=False)
+            data_rate = data['rate']
+            data_rate['server_time'] = data['server_time']
+            json_data = json.dumps(data_rate, ensure_ascii=False)
             # Сохраняем данные в Redis
             await self.redis_client.add_to_list(key, json_data)
             await self.send_to_logs(f'Сохранение данных: {key} - {json_data}')
