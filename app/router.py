@@ -108,7 +108,7 @@ async def get_game(
         data = await redis_client.get_last_items(key)
 
         if not data:
-            raise HTTPException(status_code=404, detail=f"Игра {key} не найдена")
+            raise HTTPException(status_code=404, detail=f"Игра {key} не найдена {key}, {opponent_1}")
 
         return {"games": data}
 
