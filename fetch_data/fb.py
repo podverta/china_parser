@@ -148,35 +148,29 @@ class OddsFetcher:
             raise Exception(
                 "Не удалось загрузить страницу без элемента загрузки.")
 
-    async def save_games(self, data: dict):
+    async def save_games(self, data: dict, liga_name: str):
         """
         Сохраняет игры по отдельным ключам в Redis.
 
         Args:
             data (dict): Данные в формате JSON для сохранения.
+            liga_name (str): Наименование лиги для сохранения в redis
         """
         try:
-            # Перемещение по JSON-объекту
-            for site, leagues in data.items():
-                for league, games in leagues.items():
-                    for game in games:
-                        opponent_0 = game["opponent_0"]
-                        opponent_1 = game["opponent_1"]
-
-                        # Формируем ключ
-                        key = (f"{site.lower()}, {league.lower()}, "
-                               f"{opponent_0.lower()}, {opponent_1.lower()}")
-
-                        # Преобразуем данные в JSON
-                        json_data = json.dumps(game, ensure_ascii=False)
-
-                        # Сохраняем данные в Redis
-                        await self.redis_client.add_to_list(key, json_data)
-                        await self.send_to_logs(f'Сохранение данных: {key} - {json_data}')
+            opponent_0 = data["opponent_0"]
+            opponent_1 = data["opponent_1"]
+            # Формируем ключ
+            key = (f"fb.com, {liga_name.lower()}, "
+                   f"{opponent_0.lower()}, {opponent_1.lower()}")
+            # Преобразуем данные в JSON
+            json_data = json.dumps(data, ensure_ascii=False)
+            # Сохраняем данные в Redis
+            await self.redis_client.add_to_list(key, json_data)
+            await self.send_to_logs(f'Сохранение данных: {key} - {json_data}')
         except Exception as e:
             await self.send_to_logs(f'Ошибка при сохранении данных: {str(e)}')
 
-    async def send_and_save_data(
+    async def send_data(
             self,
             data: dict,
     ):
@@ -195,8 +189,6 @@ class OddsFetcher:
             json_data = json.dumps(data, ensure_ascii=False)
             # Отправляем данные на Socket.IO сервер напрямую
             await self.sio.emit('message', json_data)
-            # Сохраняем данные в Redis
-            await self.save_games(data)
         except Exception as e:
             await self.send_to_logs(f'Ошибка при отправке данных: {str(e)}')
 
@@ -330,10 +322,11 @@ class OddsFetcher:
             return translation
         return None
 
-    @staticmethod
     async def check_changed_dict(
+            self,
             existing_list: List[Dict[str, Any]],
             new_dict: Dict[str, Any],
+            liga_name: str
     ) -> Dict:
         """
         Обновляет список словарей, если конкретный словарь изменился, или добавляет его, если его нет.
@@ -341,7 +334,7 @@ class OddsFetcher:
         Args:
             existing_list (List[Dict[str, Any]]): Список существующих словарей.
             new_dict (Dict[str, Any]): Новый словарь для добавления или обновления.
-
+            liga_name str: Наименование лиги
         Returns:
             List[Dict[str, Any]]: Обновленный список словарей.
         """
@@ -350,6 +343,12 @@ class OddsFetcher:
                     existing_dict['opponent_1'] == new_dict['opponent_1']):
                 if existing_dict['rate'] == new_dict['rate']:
                     new_dict['changed'] = False
+                else:
+                    # Сохраняем данные в Redis
+                    await self.save_games(
+                        new_dict,
+                        liga_name
+                    )
         return new_dict
 
     async def collect_odds_data(
@@ -468,11 +467,12 @@ class OddsFetcher:
                             odds_data = await self.check_changed_dict(
                                 self.previous_data["fb.com"][liga_name_translate],
                                 game_info,
+                                liga_name_translate
                             )
                         active_matches["fb.com"][liga_name_translate].append(game_info)
             if self.debug:
                 await self.send_to_logs(f'{active_matches}')
-            await self.send_and_save_data(active_matches)
+            await self.send_data(active_matches)
 
         except Exception as e:
             await self.send_to_logs(f"Произошла ошибка при сборе: {str(e)}")
