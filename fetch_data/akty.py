@@ -102,7 +102,7 @@ class FetchAkty:
             opponent_1 = data["opponent_1"]
             if is_save:
                 key = (f"akty.com, {liga_name.lower()}, "
-                       f"{opponent_0.lower()}, {opponent_1.lower()}").replace('\n', '')
+                       f"{opponent_0.lower()}, {opponent_1.lower()}")
                 # Преобразуем данные в JSON
                 data_rate = data['rate']
                 data_rate['server_time'] = data['server_time']

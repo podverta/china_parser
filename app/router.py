@@ -101,8 +101,12 @@ async def get_game(
         await redis_client.connect()
 
         # Формируем ключ в нижнем регистре
-        key = (f"{site.lower()}, {league.lower()}, "
-               f"{opponent_0.lower()}, {opponent_1.lower()}")
+        key = (
+            f"{site.strip().lower()}, "
+            f"{league.strip().lower()}, "
+            f"{opponent_0.strip().lower()}, "
+            f"{opponent_1.strip().lower()}"
+        )
 
         # Получаем данные из Redis
         data = await redis_client.get_last_items(key)
