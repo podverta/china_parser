@@ -148,29 +148,47 @@ class OddsFetcher:
             raise Exception(
                 "Не удалось загрузить страницу без элемента загрузки.")
 
-    async def save_games(self, data: dict, liga_name: str):
+
+
+    async def save_games(self, data: Dict[str, Any], liga_name: str):
         """
         Сохраняет игры по отдельным ключам в Redis.
 
         Args:
             data (dict): Данные в формате JSON для сохранения.
-            liga_name (str): Наименование лиги для сохранения в redis
+            liga_name (str): Наименование лиги для сохранения в Redis.
         """
         try:
             if self.debug:
                 return
-            opponent_0 = data["opponent_0"]
-            opponent_1 = data["opponent_1"]
-            # Формируем ключ
-            key = (f"fb.com, {liga_name.lower()}, "
-                   f"{opponent_0.lower()}, {opponent_1.lower()}")
-            # Преобразуем данные в JSON
-            data_rate = data['rate']
-            data_rate['server_time'] = data['server_time']
-            json_data = json.dumps(data_rate, ensure_ascii=False)
-            # Сохраняем данные в Redis
-            await self.redis_client.add_to_list(key, json_data)
-            await self.send_to_logs(f'Сохранение данных: {key} - {json_data}')
+
+            # Список ключей, которые нас интересуют для проверки условий ставок
+            rate_bets = [
+                'total_bet_0',
+                'total_bet_1',
+                'handicap_bet_0',
+                'handicap_bet_1'
+            ]
+
+            # Проверяем, нужно ли сохранять данные
+            is_save = any(float(data.get(rate_bet, 0)) <= 1.68 for rate_bet in rate_bets)
+
+            if is_save:
+                opponent_0 = data.get("opponent_0", "").lower()
+                opponent_1 = data.get("opponent_1", "").lower()
+
+                # Формируем ключ для сохранения в Redis
+                key = f"fb.com, {liga_name.lower()}, {opponent_0}, {opponent_1}"
+
+                # Подготавливаем данные для сохранения
+                data_rate = data.get('rate', {})
+                data_rate['server_time'] = data.get('server_time', '')
+
+                # Преобразуем данные в JSON
+                json_data = json.dumps(data_rate, ensure_ascii=False)
+
+                # Сохраняем данные в Redis
+                await self.redis_client.add_to_list(key, json_data)
         except Exception as e:
             await self.send_to_logs(f'Ошибка при сохранении данных: {str(e)}')
 

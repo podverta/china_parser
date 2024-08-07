@@ -86,18 +86,29 @@ class FetchAkty:
         try:
             if self.debug:
                 return
+
+            # Список ключей, которые нас интересуют для проверки условий ставок
+            rate_bets = [
+                'total_bet_0',
+                'total_bet_1',
+                'handicap_bet_0',
+                'handicap_bet_1'
+            ]
+
+            # Проверяем, нужно ли сохранять данные
+            is_save = any(
+                float(data.get(rate_bet, 0)) <= 1.68 for rate_bet in rate_bets)
             opponent_0 = data["opponent_0"]
             opponent_1 = data["opponent_1"]
-            # Формируем ключ
-            key = (f"akty.com, {liga_name.lower()}, "
-                   f"{opponent_0.lower()}, {opponent_1.lower()}")
-            # Преобразуем данные в JSON
-            data_rate = data['rate']
-            data_rate['server_time'] = data['server_time']
-            json_data = json.dumps(data_rate, ensure_ascii=False)
-            # Сохраняем данные в Redis
-            await self.redis_client.add_to_list(key, json_data)
-            await self.send_to_logs(f'Сохранение данных: {key} - {json_data}')
+            if is_save:
+                key = (f"akty.com, {liga_name.lower()}, "
+                       f"{opponent_0.lower()}, {opponent_1.lower()}")
+                # Преобразуем данные в JSON
+                data_rate = data['rate']
+                data_rate['server_time'] = data['server_time']
+                json_data = json.dumps(data_rate, ensure_ascii=False)
+                # Сохраняем данные в Redis
+                await self.redis_client.add_to_list(key, json_data)
         except Exception as e:
             await self.send_to_logs(f'Ошибка при сохранении данных: {str(e)}')
 
