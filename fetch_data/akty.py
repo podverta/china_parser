@@ -86,7 +86,6 @@ class FetchAkty:
         try:
             if self.debug:
                 return
-
             # Список ключей, которые нас интересуют для проверки условий ставок
             rate_bets = [
                 'total_bet_0',
@@ -107,11 +106,9 @@ class FetchAkty:
                 data_rate = data['rate']
                 data_rate['server_time'] = data['server_time']
                 json_data = json.dumps(data_rate, ensure_ascii=False)
-                # Сохраняем данные в Redis
                 await self.redis_client.add_to_list(key, json_data)
         except Exception as e:
             await self.send_to_logs(f'Ошибка при сохранении данных: {str(e)}')
-
 
     async def send_and_save_data(
             self,
@@ -122,7 +119,7 @@ class FetchAkty:
 
         :param data: Данные для отправки и сохранения.
         """
-        self.previous_data = data
+
         if self.debug:
             await self.send_to_logs(
                 "Режим отладки включен, данные не отправляются."
@@ -289,7 +286,7 @@ class FetchAkty:
             existing_list: List[Dict[str, Any]],
             new_dict: Dict[str, Any],
             liga_name: str
-    ) -> Dict:
+    ) -> Dict | bool:
         """
         Обновляет список словарей, если конкретный словарь изменился, или добавляет его, если его нет.
 
@@ -304,14 +301,15 @@ class FetchAkty:
             if (existing_dict['opponent_0'] == new_dict['opponent_0'] and
                     existing_dict['opponent_1'] == new_dict['opponent_1']):
                 if existing_dict['rate'] == new_dict['rate']:
-                    new_dict['changed'] = False
+                    return False
                 else:
                     # Сохраняем данные в Redis
                     await self.save_games(
                         new_dict,
                         liga_name
                     )
-        return new_dict
+                    print(f"{existing_dict['rate']}, {new_dict['rate']}")
+                    return True
 
     async def authorization(
             self
@@ -341,25 +339,27 @@ class FetchAkty:
         забираем данные из Redis, если нет, то переводим и сохраняем.
         Метод возвращает строку, переведенную на Русский язык.
         """
+        try:
+            if text in self.translate_cash.keys():
+                return self.translate_cash[text]
 
-        if text in self.translate_cash.keys():
-            return self.translate_cash[text]
-
-        translation = self.translator.translate(
-            text, src='zh-cn',
-            dest='en'
-        ).text
-        await self.send_to_logs(f"Перевод текста {text} - {translation}")
-        self.translate_cash[text] = translation
-        if self.debug:
+            translation = self.translator.translate(
+                text, src='zh-cn',
+                dest='en'
+            ).text
+            await self.send_to_logs(f"Перевод текста {text} - {translation}")
+            self.translate_cash[text] = translation
+            if self.debug:
+                return translation
+            data_str = await self.redis_client.get_data('translate_cash')
+            if data_str:
+                self.translate_cash = json.loads(data_str)
+            self.translate_cash[text] = translation
+            json_data = json.dumps(self.translate_cash, ensure_ascii=False)
+            await self.redis_client.set_data('translate_cash', json_data)
             return translation
-        data_str = await self.redis_client.get_data('translate_cash')
-        if data_str:
-            self.translate_cash = json.loads(data_str)
-        self.translate_cash[text] = translation
-        json_data = json.dumps(self.translate_cash, ensure_ascii=False)
-        await self.redis_client.set_data('translate_cash', json_data)
-        return translation
+        except Exception as e:
+            await self.send_to_logs(f"Ошибка при переводе: {e}, текст {text}")
 
     async def main_page(
             self
@@ -393,6 +393,7 @@ class FetchAkty:
                     )
 
                     h4_element.click()
+                    return
                 else:
                     self.driver.refresh()
                     await asyncio.sleep(5)
@@ -404,6 +405,7 @@ class FetchAkty:
                 self.driver.refresh()
                 await asyncio.sleep(15)
                 continue
+
     async def aggregator_page(
             self
     ) -> None:
@@ -520,7 +522,7 @@ class FetchAkty:
         """
         soup = await self.get_content()
         leagues_data = {NAME_BOOKMAKER: {}}
-
+        previous_leagues_data = leagues_data
         scroll_content = soup.find('div',
                                    class_='v-scroll-content relative-position')
         if not scroll_content:
@@ -637,13 +639,16 @@ class FetchAkty:
                             leagues_data[NAME_BOOKMAKER][league_name] = []
                         if (self.previous_data and league_name
                                 in self.previous_data.get(NAME_BOOKMAKER, {})):
-                            game_info = await self.check_changed_dict(
+                            changed = await self.check_changed_dict(
                                     self.previous_data[NAME_BOOKMAKER][league_name],
                                     game_info,
                                     league_name
                                 )
-                        leagues_data[NAME_BOOKMAKER][league_name].append(game_info)
+                            if changed:
+                                leagues_data[NAME_BOOKMAKER][league_name].append(game_info)
+                        previous_leagues_data[NAME_BOOKMAKER][league_name].append(game_info)
 
+        self.previous_data = previous_leagues_data
         return leagues_data
 
     async def monitor_leagues(
@@ -687,7 +692,6 @@ class FetchAkty:
 
     def __del__(self):
         asyncio.run(fetch_akty.close())
-
 
     async def run(self, *args, **kwargs):
         """
