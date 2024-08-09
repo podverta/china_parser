@@ -517,7 +517,7 @@ class FetchAkty:
         """
         soup = await self.get_content()
         leagues_data = {NAME_BOOKMAKER: {}}
-        previous_leagues_data = leagues_data
+        previous_leagues_data = {NAME_BOOKMAKER: {}}
         scroll_content = soup.find('div',
                                    class_='v-scroll-content relative-position')
 
@@ -653,10 +653,6 @@ class FetchAkty:
                             previous_leagues_data[NAME_BOOKMAKER][
                                 league_name].append(game_info)
                         # Обновляем previous_leagues_data после каждой итерации
-                        if league_name not in previous_leagues_data[
-                            NAME_BOOKMAKER]:
-                            previous_leagues_data[NAME_BOOKMAKER][
-                                league_name] = []
                         previous_leagues_data[NAME_BOOKMAKER][
                                 league_name].append(game_info)
 
@@ -691,7 +687,8 @@ class FetchAkty:
                         target_leagues
                     )
                     previous_hash = current_hash
-                    await self.send_data(leagues_data)
+                    if leagues_data:
+                        await self.send_data(leagues_data)
                 except Exception:
                     await self.send_to_logs(
                         f'Ошибка: {traceback.format_exc()}'
