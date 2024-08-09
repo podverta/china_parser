@@ -391,7 +391,7 @@ class FetchAkty:
                     continue
 
             except Exception as e:
-                self.logger.error(
+                logger.error(
                     f"Попытка {attempt + 1}/{max_retries} не удалась: {str(e)}")
                 if attempt < max_retries - 1:
                     self.driver.refresh()
