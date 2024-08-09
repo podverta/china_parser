@@ -338,16 +338,44 @@ class FetchAkty:
         """
         Переход с главной страницы.
         """
-        await asyncio.sleep(5)
-        self.driver.execute_script("window.scrollBy(0, arguments[0]);", 1700)
-        await asyncio.sleep(2)
-        button_section = await self.wait_for_element(By.CSS_SELECTOR,
-                                               "div[data-apiname='YBTY']",
-                                               timeout=30)
-        await self.scroll_to_element(button_section)
-        await asyncio.sleep(2)
-        button_section.click()
-        await self.send_to_logs('Переход с главной страницы выполнен')
+        """
+             Загружает основную страницу по заданному URL с проверкой на элемент загрузки.
+             """
+        max_retries = 3
+
+        for attempt in range(max_retries):
+            try:
+                await asyncio.sleep(5)
+                ul_element = await self.wait_for_element(
+                    By.CLASS_NAME,
+                    "header__venue__3IZlT",
+                    timeout=30
+                )
+                if ul_element:
+                    span_element = ul_element.find_element(
+                        By.XPATH,
+                        ".//span[text()='体育']"
+                    )
+                    self.action.move_to_element(span_element).perform()
+                    await asyncio.sleep(2)
+                    h4_element = await self.wait_for_element(
+                        By.XPATH,
+                        "//img[@src='https://senbackkg.m42i79a.com/main-consumer-web/assets-oss/ak/images/header/ty-hq.fcfac2c0d9d469709a1ede2e376bf482.webp?x-oss-process=image/resize,w_210,h_210/quality,Q_100/sharpen,100/format,webp']"
+                    )
+
+                    h4_element.click()
+                    return
+                else:
+                    self.driver.refresh()
+                    await asyncio.sleep(5)
+                    continue
+
+                await self.send_to_logs('Переход с главной страницы выполнен')
+            except Exception as e:
+                await self.send_to_logs(f'Ошибка на главной странице: {e}')
+                self.driver.refresh()
+                await asyncio.sleep(15)
+                continue
 
     async def aggregator_page(
             self
