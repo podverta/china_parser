@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 from dotenv import load_dotenv
 from zoneinfo import ZoneInfo
-from googletrans import Translator
+from translatepy import Translator
 import undetected_chromedriver as uc
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -336,10 +336,11 @@ class OddsFetcher:
                    }
                """)
         if full_name_element:
-            translation = self.translator.translate(
-                full_name_element, src='zh-cn',
-                dest='en'
-            ).text
+            translation_request = self.translator.translate(
+                full_name_element,
+                "english"
+            )
+            translation = translation_request.result
         if translation:
             self.translate_cash[short_name] = translation
             if self.debug:

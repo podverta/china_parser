@@ -7,7 +7,7 @@ import traceback
 import json
 import undetected_chromedriver as uc
 from typing import List, Dict, Any
-from googletrans import Translator
+from translatepy import Translator
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from zoneinfo import ZoneInfo
@@ -346,10 +346,11 @@ class FetchAkty:
             if text in self.translate_cash.keys():
                 return self.translate_cash[text]
 
-            translation = self.translator.translate(
-                text, src='zh-cn',
-                dest='en'
-            ).text
+            translation_request = self.translator.translate(
+                text,
+                "english"
+            )
+            translation = translation_request.result
             await self.send_to_logs(f"Перевод текста {text} - {translation}")
             self.translate_cash[text] = translation
             if self.debug:
