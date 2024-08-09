@@ -175,7 +175,7 @@ def check_and_start_parsers(is_first_run: bool = False):
             logger.info(
                 f"Активная задача для парсера {parser_name} не найдена, "
                 f"запуск новой задачи через 30 секунд.")
-            time.sleep(30)
+            time.sleep(90)
             parse_some_data.apply_async(args=(parser_name,),
                                         kwargs={'is_first_run': is_first_run})
         else:
