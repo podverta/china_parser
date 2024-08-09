@@ -21,6 +21,7 @@ from selenium.common.exceptions import TimeoutException, WebDriverException
 from selenium.webdriver.common.keys import Keys
 from app.logging import setup_logger
 from transfer_data.redis_client import RedisClient
+from transfer_data.telegram_bot import send_message_to_telegram
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
@@ -75,6 +76,8 @@ class FetchAkty:
         self.action = ActionChains(self.driver)
         self.previous_data = {}
 
+
+
     async def save_games(self, data: dict, liga_name: str):
         """
         Сохраняет игры по отдельным ключам в Redis.
@@ -103,10 +106,15 @@ class FetchAkty:
                 key = (f"akty.com, {liga_name.lower()}, "
                        f"{opponent_0.lower()}, {opponent_1.lower()}")
                 # Преобразуем данные в JSON
-                data_rate = data['rate']
-                data_rate['server_time'] = data['server_time']
+                data_rate = data.get('rate', {})
+                data_rate['server_time'] = data.get('server_time', '')
                 json_data = json.dumps(data_rate, ensure_ascii=False)
                 await self.redis_client.add_to_list(key, json_data)
+                data_rate[opponent_0] = opponent_0
+                data_rate[opponent_1] = opponent_1
+                data_rate['liga'] = liga_name
+                data_rate['site'] = 'AK'
+                await send_message_to_telegram(data_rate)
         except Exception as e:
             await self.send_to_logs(f'Ошибка при сохранении данных: {str(e)}')
 

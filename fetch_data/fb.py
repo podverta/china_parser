@@ -19,6 +19,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from app.logging import setup_logger
 from selenium.webdriver.common.action_chains import ActionChains
 from transfer_data.redis_client import RedisClient
+from transfer_data.telegram_bot import send_message_to_telegram
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
@@ -187,6 +188,11 @@ class OddsFetcher:
 
                 # Сохраняем данные в Redis
                 await self.redis_client.add_to_list(key, json_data)
+                data_rate[opponent_0] = opponent_0
+                data_rate[opponent_1] = opponent_1
+                data_rate['liga'] = liga_name
+                data_rate['site'] = 'FB'
+                await send_message_to_telegram(data_rate)
         except Exception as e:
             await self.send_to_logs(f'Ошибка при сохранении данных: {str(e)}')
 
