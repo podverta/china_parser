@@ -199,10 +199,13 @@ class OddsFetcher:
 
         :param data: Данные для отправки и сохранения.
         """
-        self.previous_data = data
+
         if self.debug:
             await self.send_to_logs(
                 "Режим отладки включен, данные не отправляются."
+            )
+            await self.send_to_logs(
+                f'{data}'
             )
             return
         try:
@@ -347,59 +350,56 @@ class OddsFetcher:
             existing_list: List[Dict[str, Any]],
             new_dict: Dict[str, Any],
             liga_name: str
-    ) -> Dict:
+    ) -> bool:
         """
-        Обновляет список словарей, если конкретный словарь изменился, или добавляет его, если его нет.
+        Проверяет и обновляет список словарей, если конкретный словарь изменился, или добавляет его, если его нет.
 
-        Args:
-            existing_list (List[Dict[str, Any]]): Список существующих словарей.
-            new_dict (Dict[str, Any]): Новый словарь для добавления или обновления.
-            liga_name str: Наименование лиги
-        Returns:
-            List[Dict[str, Any]]: Обновленный список словарей.
+        :param existing_list: Список существующих словарей.
+        :param new_dict: Новый словарь для добавления или обновления.
+        :param liga_name: Наименование лиги.
+        :return: True, если данные изменились и были сохранены, иначе False.
         """
-        for i, existing_dict in enumerate(existing_list):
+        for existing_dict in existing_list:
             if (existing_dict['opponent_0'] == new_dict['opponent_0'] and
                     existing_dict['opponent_1'] == new_dict['opponent_1']):
-                if existing_dict['rate'] == new_dict['rate']:
-                    new_dict['changed'] = False
-                else:
+                if (existing_dict['rate'] != new_dict['rate'] or
+                        existing_dict['score_game'] != new_dict['score_game']):
                     # Сохраняем данные в Redis
-                    await self.save_games(
-                        new_dict,
-                        liga_name
-                    )
-        return new_dict
+                    await self.save_games(new_dict, liga_name)
+                    return True
+                return False
+        return True
 
-    async def collect_odds_data(
-            self,
-            target_leagues: dict,
-    ):
+    async def collect_odds_data(self, target_leagues: dict):
         """
         Сбор данных о коэффициентах для заданных лиг.
+
+        :param target_leagues: dict, содержащий целевые лиги для извлечения данных.
         """
         active_matches = {"fb.com": {}}
+        previous_leagues_data = {"fb.com": {}}
 
         try:
             html = self.driver.page_source
             soup = BeautifulSoup(html, 'html.parser')
             match_groups = soup.select('.home-match-list-box .group-matches')
+
             for group in match_groups:
                 league_name_element = group.select_one('.league-name')
                 if league_name_element is None:
                     continue
                 league_name = league_name_element.text
                 if league_name in target_leagues:
-                    if league_name not in active_matches["fb.com"]:
-                        liga_name_translate = target_leagues[league_name]
+                    liga_name_translate = target_leagues[league_name]
+                    if liga_name_translate not in active_matches["fb.com"]:
                         active_matches["fb.com"][liga_name_translate] = []
+
                     matches = group.select(
-                        '.home-match-list__item.home-match-info'
-                    )
+                        '.home-match-list__item.home-match-info')
+
                     for match in matches:
                         team_names = match.select(
-                            '.match-teams-name .team-name'
-                        )
+                            '.match-teams-name .team-name')
                         if len(team_names) != 2:
                             continue
 
@@ -408,14 +408,16 @@ class OddsFetcher:
                         translate_opponent_0_name = await self.get_translate(
                             short_team1_name) if short_team1_name != '' else ''
                         translate_opponent_1_name = await self.get_translate(
-                            short_team2_name) if short_team1_name != '' else ''
+                            short_team2_name) if short_team2_name != '' else ''
+
                         scores = match.select('.match-score p span')
                         if len(scores) != 2:
                             continue
+
                         opponent_0_score = scores[0].text
                         opponent_1_score = scores[1].text
+
                         game_info = {
-                            'changed': True,
                             'opponent_0': translate_opponent_0_name,
                             'opponent_1': translate_opponent_1_name,
                             'score_game': f'{opponent_0_score}:{opponent_1_score}',
@@ -431,6 +433,7 @@ class OddsFetcher:
                             },
                             'server_time': '',
                         }
+
                         process_time_elements = match.select('.time')
                         if process_time_elements:
                             process_time_text_element = process_time_elements[
@@ -442,13 +445,14 @@ class OddsFetcher:
 
                             process_time_element = process_time_elements[
                                 0].select_one('.match-left-time.font-din')
-
                             if process_time_element and process_time_element.text.strip():
                                 process_time = process_time_element.text.strip()
                                 game_info['time_game'] += ' ' + process_time
+
                         game_info['server_time'] = datetime.now(
                             tz=ZoneInfo("Europe/Moscow")
                         ).strftime("%H:%M:%S")
+
                         odds_boxes = match.select('.home-match-odds-box')
                         found_handicap = False
                         found_ou = False
@@ -456,46 +460,74 @@ class OddsFetcher:
                             category = odds_box.get('class', '')
                             if 'match-full-odds-handicap' in category and not found_handicap:
                                 found_handicap = True
-                                odds_items = odds_box.select('.team-odds-list .value.font-din')
+                                odds_items = odds_box.select(
+                                    '.team-odds-list .value.font-din')
                                 if len(odds_items) >= 2:
-                                    game_info['rate']['handicap_bet_0'] = odds_items[0].text
-                                    game_info['rate']['handicap_bet_1'] = odds_items[1].text
-                                handicap_points = odds_box.select('.team-odds-list .prefix-text.text-grey-disable')
-                                if len(handicap_points) >=2:
-                                    game_info['rate']['handicap_point_0'] = handicap_points[0].text
-                                    game_info['rate']['handicap_point_1'] = handicap_points[1].text
-                            elif ('match-full-odds-total' in category and
-                                  not found_ou):
+                                    game_info['rate']['handicap_bet_0'] = \
+                                    odds_items[0].text
+                                    game_info['rate']['handicap_bet_1'] = \
+                                    odds_items[1].text
+                                handicap_points = odds_box.select(
+                                    '.team-odds-list .prefix-text.text-grey-disable')
+                                if len(handicap_points) >= 2:
+                                    game_info['rate']['handicap_point_0'] = \
+                                    handicap_points[0].text
+                                    game_info['rate']['handicap_point_1'] = \
+                                    handicap_points[1].text
+                            elif 'match-full-odds-total' in category and not found_ou:
                                 found_ou = True
-                                odds_items = odds_box.select('.team-odds-list .value.font-din')
+                                odds_items = odds_box.select(
+                                    '.team-odds-list .value.font-din')
                                 if len(odds_items) >= 2:
-                                    game_info['rate']['total_bet_0'] = odds_items[0].text
-                                    game_info['rate']['total_bet_1'] = odds_items[1].text
+                                    game_info['rate']['total_bet_0'] = \
+                                    odds_items[0].text
+                                    game_info['rate']['total_bet_1'] = \
+                                    odds_items[1].text
                                 total_points = odds_box.select(
                                     '.team-odds-list .prefix-text.text-grey-disable')
                                 if len(total_points) >= 2:
                                     point_0 = total_points[0].text
-                                    point_0_cleared = re.sub(
-                                        r'[大小 ]', '', point_0
-                                    )
+                                    point_0_cleared = re.sub(r'[大小 ]', '',
+                                                             point_0)
                                     game_info['rate'][
-                                        'total_point'] = point_0_cleared if \
-                                            point_0_cleared else \
-                                            game_info['rate']['total_point']
-                        if (self.previous_data and liga_name_translate
-                                in self.previous_data.get("fb.com", {})):
-                            game_info = await self.check_changed_dict(
-                                self.previous_data["fb.com"][liga_name_translate],
+                                        'total_point'] = point_0_cleared if point_0_cleared else \
+                                    game_info['rate']['total_point']
+
+                        if (
+                                self.previous_data and liga_name_translate in self.previous_data.get(
+                                "fb.com", {})):
+                            changed_data = await self.check_changed_dict(
+                                self.previous_data["fb.com"][
+                                    liga_name_translate],
                                 game_info,
                                 liga_name_translate
                             )
-                        active_matches["fb.com"][liga_name_translate].append(game_info)
-            if self.debug:
-                await self.send_to_logs(f'{active_matches}')
-            await self.send_data(active_matches)
+                            if changed_data:
+                                active_matches["fb.com"][
+                                    liga_name_translate].append(game_info)
+                        else:
+                            active_matches["fb.com"][
+                                liga_name_translate].append(game_info)
 
+                        # Обновляем previous_leagues_data после каждой итерации
+                        if liga_name_translate not in previous_leagues_data[
+                            "fb.com"]:
+                            previous_leagues_data["fb.com"][
+                                liga_name_translate] = []
+                        previous_leagues_data["fb.com"][
+                            liga_name_translate].append(game_info)
+
+            self.previous_data = previous_leagues_data
+
+            # Удаляем пустые словари перед отправкой
+            active_matches["fb.com"] = {k: v for k, v in
+                                        active_matches["fb.com"].items() if v}
+
+            # Отправляем данные, только если они изменились
+            if any(active_matches["fb.com"].values()):
+                await self.send_data(active_matches)
         except Exception as e:
-            await self.send_to_logs(f"Произошла ошибка при сборе: {str(e)}")
+            logger.error(f"Error in collect_odds_data: {str(e)}")
 
     async def close(self):
         if self.driver:

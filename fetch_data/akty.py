@@ -110,7 +110,7 @@ class FetchAkty:
         except Exception as e:
             await self.send_to_logs(f'Ошибка при сохранении данных: {str(e)}')
 
-    async def send_and_save_data(
+    async def send_data(
             self,
             data: dict
     ):
@@ -286,30 +286,25 @@ class FetchAkty:
             existing_list: List[Dict[str, Any]],
             new_dict: Dict[str, Any],
             liga_name: str
-    ) -> Dict | bool:
+    ) -> bool:
         """
-        Обновляет список словарей, если конкретный словарь изменился, или добавляет его, если его нет.
+        Проверяет и обновляет список словарей, если конкретный словарь изменился, или добавляет его, если его нет.
 
-        Args:
-            existing_list (List[Dict[str, Any]]): Список существующих словарей.
-            new_dict (Dict[str, Any]): Новый словарь для добавления или обновления.
-            liga_name str: Наименование лиги
-        Returns:
-            List[Dict[str, Any]]: Обновленный список словарей.
+        :param existing_list: Список существующих словарей.
+        :param new_dict: Новый словарь для добавления или обновления.
+        :param liga_name: Наименование лиги.
+        :return: True, если данные изменились и были сохранены, иначе False.
         """
-        for i, existing_dict in enumerate(existing_list):
+        for existing_dict in existing_list:
             if (existing_dict['opponent_0'] == new_dict['opponent_0'] and
                     existing_dict['opponent_1'] == new_dict['opponent_1']):
-                if existing_dict['rate'] == new_dict['rate']:
-                    return False
-                else:
+                if (existing_dict['rate'] != new_dict['rate'] or
+                        existing_dict['score_game'] != new_dict['score_game']):
                     # Сохраняем данные в Redis
-                    await self.save_games(
-                        new_dict,
-                        liga_name
-                    )
-                    print(f"{existing_dict['rate']}, {new_dict['rate']}")
+                    await self.save_games(new_dict, liga_name)
                     return True
+                return False
+        return True
 
     async def authorization(
             self
@@ -517,7 +512,7 @@ class FetchAkty:
     ) -> dict:
         """
         Извлечение данных лиг из HTML.
-        :param target_leagues: list
+        :param target_leagues: dict
         :return: dict
         """
         soup = await self.get_content()
@@ -525,10 +520,17 @@ class FetchAkty:
         previous_leagues_data = leagues_data
         scroll_content = soup.find('div',
                                    class_='v-scroll-content relative-position')
+
         if not scroll_content:
             return leagues_data
 
-        cards = scroll_content.find_all('div', class_=re.compile('list-card-wrap 1 v-scroll-item 1 relative-position'),recursive=False)
+        cards = scroll_content.find_all(
+            'div',
+            class_=re.compile(
+                'list-card-wrap 1 v-scroll-item 1 relative-position'),
+            recursive=False
+        )
+
         league_name = None
         for card in cards:
             div_name_liga = card.find('span',
@@ -536,120 +538,136 @@ class FetchAkty:
             if div_name_liga:
                 league_name = div_name_liga.get_text()
                 if league_name in target_leagues.keys():
-                    if 'style' in card.attrs and re.search(
-                            r'height:\s*37px;',
-                            card['style']
-                    ):
+                    if 'style' in card.attrs and re.search(r'height:\s*37px;',
+                                                           card['style']):
                         await self.click_element_by_text()
             elif league_name and league_name in target_leagues.keys():
-
                 league_name = target_leagues[league_name]
                 list_mid_elements = card.find_all('div',
                                                   id='list-mid-undefined')
                 for list_mid_element in list_mid_elements:
-                    opponent_0 = list_mid_element.find('div', class_='row-item team-item')
-                    opponent_1 = list_mid_element.find('div', class_='row-item team-item soon')
+                    opponent_0 = list_mid_element.find('div',
+                                                       class_='row-item team-item')
+                    opponent_1 = list_mid_element.find('div',
+                                                       class_='row-item team-item soon')
+
                     if opponent_0 and opponent_1:
-                        opponent_0_name = opponent_0.find('div', class_=re.compile(
-                            'allow-user-select')).get_text()
+                        opponent_0_name = opponent_0.find('div',
+                                                          class_=re.compile(
+                                                              'allow-user-select')).get_text()
                         translate_opponent_0_name = await self.translate_and_cache(
-                            opponent_0_name
-                        ) if opponent_0_name != '' else ''
-                        opponent_1_name = opponent_1.find('div', class_=re.compile(
-                            'allow-user-select')).get_text()
+                            opponent_0_name) if opponent_0_name != '' else ''
+                        opponent_1_name = opponent_1.find('div',
+                                                          class_=re.compile(
+                                                              'allow-user-select')).get_text()
                         translate_opponent_1_name = await self.translate_and_cache(
-                            opponent_1_name
-                        ) if opponent_1_name != '' else ''
-                        opponent_0_score_div = opponent_0.find(
-                            'div',
-                            class_='score'
-                        )
+                            opponent_1_name) if opponent_1_name != '' else ''
+
+                        opponent_0_score_div = opponent_0.find('div',
+                                                               class_='score')
                         opponent_0_score = opponent_0_score_div.find(
                             'span').get_text() if opponent_0_score_div else ""
                         opponent_1_score_div = opponent_1.find('div',
                                                                class_='score')
                         opponent_1_score = opponent_1_score_div.find(
                             'span').get_text() if opponent_1_score_div else ""
+
                         bet_divs = card.find_all('div', class_='handicap-col')
-                        handicap_bet_div = bet_divs[1].find_all(
-                            'span',
-                            class_='highlight-odds'
-                        )
-                        handicap_point_divs = bet_divs[1].find_all(
-                            'div',
-                            class_='handicap-value-text handicap-value-ranks'
-                        )
+                        handicap_bet_div = bet_divs[1].find_all('span',
+                                                                class_='highlight-odds')
+                        handicap_point_divs = bet_divs[1].find_all('div',
+                                                                   class_='handicap-value-text handicap-value-ranks')
+
                         opponent_0_handicap_bet = handicap_bet_div[
                             0].get_text() if len(handicap_bet_div) > 0 else ""
                         opponent_0_handicap_point = handicap_point_divs[
-                            0].get_text().strip() if len(handicap_point_divs) > 0 else ""
+                            0].get_text().strip() if len(
+                            handicap_point_divs) > 0 else ""
                         opponent_1_handicap_bet = handicap_bet_div[
                             1].get_text() if len(handicap_bet_div) > 1 else ""
                         opponent_1_handicap_point = handicap_point_divs[
-                            1].get_text().strip() if len(handicap_point_divs) > 1 else ""
-                        total_bet_div = bet_divs[2].find_all(
-                            'span',
-                            class_='highlight-odds'
-                        )
-                        total_point_divs = bet_divs[2].find_all(
-                            'div',
-                            class_='handicap-value-text handicap-value-ranks'
-                        )
-                        opponent_0_total_bet = total_bet_div[0].get_text() if len(
-                            total_bet_div) > 0 else ""
+                            1].get_text().strip() if len(
+                            handicap_point_divs) > 1 else ""
+
+                        total_bet_div = bet_divs[2].find_all('span',
+                                                             class_='highlight-odds')
+                        total_point_divs = bet_divs[2].find_all('div',
+                                                                class_='handicap-value-text handicap-value-ranks')
+
+                        opponent_0_total_bet = total_bet_div[
+                            0].get_text() if len(total_bet_div) > 0 else ""
                         opponent_0_total_point = total_point_divs[
                             0].get_text().strip() if len(
                             total_point_divs) > 0 else ""
-                        opponent_1_total_bet = total_bet_div[1].get_text() if len(
-                            total_bet_div) > 1 else ""
-                        process_time_span = list_mid_element.find(
-                            'span',
-                            class_='timer-layout2'
-                        )
-                        process_time = process_time_span.get_text() if \
-                            process_time_span else ""
-                        process_time_div_text = list_mid_element.find(
-                            'div',
-                            class_='process_name'
-                        )
+                        opponent_1_total_bet = total_bet_div[
+                            1].get_text() if len(total_bet_div) > 1 else ""
+
+                        process_time_span = list_mid_element.find('span',
+                                                                  class_='timer-layout2')
+                        process_time = process_time_span.get_text() if process_time_span else ""
+
+                        process_time_div_text = list_mid_element.find('div',
+                                                                      class_='process_name')
                         process_time_text = self.time_game_translate.get(
                             process_time_div_text.get_text().strip(),
-                            '') if process_time_div_text else ""
+                            ''
+                        ) if process_time_div_text else ""
+
                         server_time = datetime.now(
-                            tz=ZoneInfo("Europe/Moscow")
-                        ).strftime("%H:%M:%S")
+                            tz=ZoneInfo("Europe/Moscow")).strftime("%H:%M:%S")
+
                         game_info = {
-                            'changed': True,
                             'opponent_0': translate_opponent_0_name,
                             'opponent_1': translate_opponent_1_name,
                             'score_game': f'{opponent_0_score}:{opponent_1_score}',
                             'time_game': f'{process_time_text} {process_time}',
                             'rate': {
-                            'total_point': opponent_0_total_point,
-                            'total_bet_0': opponent_0_total_bet,
-                            'total_bet_1': opponent_1_total_bet,
-                            'handicap_point_0': opponent_0_handicap_point,
-                            'handicap_bet_0': opponent_0_handicap_bet,
-                            'handicap_point_1': opponent_1_handicap_point,
-                            'handicap_bet_1': opponent_1_handicap_bet,
+                                'total_point': opponent_0_total_point,
+                                'total_bet_0': opponent_0_total_bet,
+                                'total_bet_1': opponent_1_total_bet,
+                                'handicap_point_0': opponent_0_handicap_point,
+                                'handicap_bet_0': opponent_0_handicap_bet,
+                                'handicap_point_1': opponent_1_handicap_point,
+                                'handicap_bet_1': opponent_1_handicap_bet,
                             },
                             'server_time': server_time,
                         }
+
                         if league_name not in leagues_data[NAME_BOOKMAKER]:
                             leagues_data[NAME_BOOKMAKER][league_name] = []
-                        if (self.previous_data and league_name
-                                in self.previous_data.get(NAME_BOOKMAKER, {})):
-                            changed = await self.check_changed_dict(
-                                    self.previous_data[NAME_BOOKMAKER][league_name],
-                                    game_info,
-                                    league_name
-                                )
-                            if changed:
-                                leagues_data[NAME_BOOKMAKER][league_name].append(game_info)
-                        previous_leagues_data[NAME_BOOKMAKER][league_name].append(game_info)
+                            previous_leagues_data[NAME_BOOKMAKER][
+                                league_name] = []
+
+                        if (
+                                self.previous_data and league_name in self.previous_data.get(
+                                NAME_BOOKMAKER, {})):
+                            changed_data = await self.check_changed_dict(
+                                self.previous_data[NAME_BOOKMAKER][league_name],
+                                game_info,
+                                league_name
+                            )
+                            if changed_data:
+                                leagues_data[NAME_BOOKMAKER][
+                                    league_name].append(game_info)
+                        else:
+                            previous_leagues_data[NAME_BOOKMAKER][
+                                league_name].append(game_info)
+                        # Обновляем previous_leagues_data после каждой итерации
+                        if league_name not in previous_leagues_data[
+                            NAME_BOOKMAKER]:
+                            previous_leagues_data[NAME_BOOKMAKER][
+                                league_name] = []
+                        previous_leagues_data[NAME_BOOKMAKER][
+                                league_name].append(game_info)
 
         self.previous_data = previous_leagues_data
-        return leagues_data
+
+        # Удаление пустых значений из словаря
+        leagues_data[NAME_BOOKMAKER] = {
+            k: v for k, v in leagues_data[NAME_BOOKMAKER].items() if v
+        }
+        if any(leagues_data[NAME_BOOKMAKER].values()):
+            return leagues_data
 
     async def monitor_leagues(
             self,
@@ -673,7 +691,7 @@ class FetchAkty:
                         target_leagues
                     )
                     previous_hash = current_hash
-                    await self.send_and_save_data(leagues_data)
+                    await self.send_data(leagues_data)
                 except Exception:
                     await self.send_to_logs(
                         f'Ошибка: {traceback.format_exc()}'
