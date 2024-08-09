@@ -363,8 +363,8 @@ class FetchAkty:
         Переход с главной страницы.
         """
         """
-             Загружает основную страницу по заданному URL с проверкой на элемент загрузки.
-             """
+        Загружает основную страницу по заданному URL с проверкой на элемент загрузки.
+        """
         max_retries = 3
 
         for attempt in range(max_retries):
@@ -382,24 +382,34 @@ class FetchAkty:
                     )
                     self.action.move_to_element(span_element).perform()
                     await asyncio.sleep(2)
+
+                    # Проверка кликабельности элемента
                     h4_element = await self.wait_for_element(
                         By.XPATH,
                         "//img[@src='https://senbackkg.m42i79a.com/main-consumer-web/assets-oss/ak/images/header/ty-hq.fcfac2c0d9d469709a1ede2e376bf482.webp?x-oss-process=image/resize,w_210,h_210/quality,Q_100/sharpen,100/format,webp']"
                     )
 
-                    h4_element.click()
-                    return
+                    if h4_element.is_displayed() and h4_element.is_enabled():
+                        h4_element.click()
+                        return
+                    else:
+                        # Если элемент не кликабелен, перезагружаем страницу и повторяем
+                        self.driver.refresh()
+                        await asyncio.sleep(5)
+                        continue
                 else:
                     self.driver.refresh()
                     await asyncio.sleep(5)
                     continue
 
-                await self.send_to_logs('Переход с главной страницы выполнен')
             except Exception as e:
-                await self.send_to_logs(f'Ошибка на главной странице: {e}')
-                self.driver.refresh()
-                await asyncio.sleep(15)
-                continue
+                logger.error(
+                    f"Попытка {attempt + 1}/{max_retries} не удалась: {str(e)}")
+                if attempt < max_retries - 1:
+                    self.driver.refresh()
+                    await asyncio.sleep(5)
+                else:
+                    raise e
 
     async def aggregator_page(
             self
