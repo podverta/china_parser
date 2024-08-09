@@ -316,20 +316,32 @@ class FetchAkty:
         if text in self.translate_cash.keys():
             return self.translate_cash[text]
 
-        translation = self.translator.translate(
-            text, src='zh-cn',
-            dest='ru'
-        ).text
+        # Попытка перевода с проверкой результата
+        translation_result = self.translator.translate(text, src='zh-cn',
+                                                       dest='ru')
+
+        # Проверка на None, если перевод не удался
+        if not translation_result or not translation_result.text:
+            await self.send_to_logs(
+                f"Ошибка перевода текста: {text}. Возвращаю исходный текст.")
+            return text
+
+        translation = translation_result.text
+
         await self.send_to_logs(f"Перевод текста {text} - {translation}")
         self.translate_cash[text] = translation
+
         if self.debug:
             return translation
+
         data_str = await self.redis_client.get('translate_cash')
         if data_str:
             self.translate_cash = json.loads(data_str.decode('utf-8'))
+
         self.translate_cash[text] = translation
         json_data = json.dumps(self.translate_cash, ensure_ascii=False)
         await self.redis_client.set('translate_cash', json_data)
+
         return translation
 
     async def main_page(
