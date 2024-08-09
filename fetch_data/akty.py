@@ -292,12 +292,12 @@ class FetchAkty:
         """
         await self.get_url(self.url)
         login_input = await self.wait_for_element(By.CSS_SELECTOR,
-                                            "input[placeholder*='账号']",
-                                            timeout=60)
+                                                  "input[placeholder*='账号']",
+                                                  timeout=60)
         await asyncio.sleep(15)
         login_input.send_keys(LOGIN)
         password_input = await self.wait_for_element(By.CSS_SELECTOR,
-                                               "input[placeholder='密码']")
+                                                     "input[placeholder='密码']")
         password_input.clear()
         password_input.send_keys(PASSWORD)
         password_input.send_keys(Keys.ENTER)
