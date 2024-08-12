@@ -1,6 +1,7 @@
 import time
 import os
 import re
+import copy
 import socketio
 import json
 import asyncio
@@ -317,6 +318,8 @@ class OddsFetcher:
         """
         Получает полное название команды, используя кэш или выполнив наведение на элемент.
         """
+        if not short_name:
+            return short_name
         translation = ""
         if short_name in self.translate_cash.keys():
             return self.translate_cash[short_name]
@@ -354,22 +357,22 @@ class OddsFetcher:
     async def check_changed_dict(
             self,
             existing_list: List[Dict[str, Any]],
-            new_dict: Dict[str, Any],
+            game_info: Dict[str, Any],
             liga_name: str
     ) -> bool:
         """
         Проверяет и обновляет список словарей, если конкретный словарь изменился, или добавляет его, если его нет.
 
         :param existing_list: Список существующих словарей.
-        :param new_dict: Новый словарь для добавления или обновления.
+        :param game_info: Новый словарь для добавления или обновления.
         :param liga_name: Наименование лиги.
         :return: True, если данные изменились и были сохранены, иначе False.
         """
+        new_dict = copy.deepcopy(game_info)
         for existing_dict in existing_list:
             if (existing_dict['opponent_0'] == new_dict['opponent_0'] and
                     existing_dict['opponent_1'] == new_dict['opponent_1']):
-                if (existing_dict['rate'] != new_dict['rate'] or
-                        existing_dict['score_game'] != new_dict['score_game']):
+                if existing_dict['rate'] != new_dict['rate']:
                     # Сохраняем данные в Redis
                     await self.save_games(new_dict, liga_name)
                     return True

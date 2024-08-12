@@ -1,5 +1,6 @@
 import os
 import re
+import copy
 import asyncio
 import socketio
 import hashlib
@@ -76,8 +77,6 @@ class FetchAkty:
         self.action = ActionChains(self.driver)
         self.previous_data = {}
 
-
-
     async def save_games(self, data: dict, liga_name: str):
         """
         Сохраняет игры по отдельным ключам в Redis.
@@ -87,8 +86,7 @@ class FetchAkty:
             liga_name (str): Наименование лиги для сохранения в redis
         """
         try:
-            if self.debug:
-                return
+
             # Список ключей, которые нас интересуют для проверки условий ставок
             rate_bets = [
                 'total_bet_0',
@@ -105,16 +103,18 @@ class FetchAkty:
             if is_save:
                 key = (f"akty.com, {liga_name.lower()}, "
                        f"{opponent_0.lower()}, {opponent_1.lower()}")
-                # Преобразуем данные в JSON
                 data_rate = data.get('rate', {})
                 data_rate['server_time'] = data.get('server_time', '')
                 json_data = json.dumps(data_rate, ensure_ascii=False)
-                await self.redis_client.add_to_list(key, json_data)
                 data_rate['opponent_0'] = opponent_0
                 data_rate['opponent_1'] = opponent_1
                 data_rate['liga'] = liga_name
                 data_rate['site'] = 'AK'
+                if self.debug:
+                    return
                 await send_message_to_telegram(data_rate)
+                await self.redis_client.add_to_list(key, json_data)
+
         except Exception as e:
             await self.send_to_logs(f'Ошибка при сохранении данных: {str(e)}')
 
@@ -292,23 +292,22 @@ class FetchAkty:
     async def check_changed_dict(
             self,
             existing_list: List[Dict[str, Any]],
-            new_dict: Dict[str, Any],
+            game_info: Dict[str, Any],
             liga_name: str
     ) -> bool:
         """
         Проверяет и обновляет список словарей, если конкретный словарь изменился, или добавляет его, если его нет.
 
         :param existing_list: Список существующих словарей.
-        :param new_dict: Новый словарь для добавления или обновления.
+        :param game_info: Новый словарь для добавления или обновления.
         :param liga_name: Наименование лиги.
         :return: True, если данные изменились и были сохранены, иначе False.
         """
+        new_dict = copy.deepcopy(game_info)
         for existing_dict in existing_list:
             if (existing_dict['opponent_0'] == new_dict['opponent_0'] and
                     existing_dict['opponent_1'] == new_dict['opponent_1']):
-                if (existing_dict['rate'] != new_dict['rate'] or
-                        existing_dict['score_game'] != new_dict['score_game']):
-                    # Сохраняем данные в Redis
+                if existing_dict['rate'] != new_dict['rate']:
                     await self.save_games(new_dict, liga_name)
                     return True
                 return False
@@ -343,6 +342,8 @@ class FetchAkty:
         Метод возвращает строку, переведенную на Русский язык.
         """
         try:
+            if not text:
+                return text
             if text in self.translate_cash.keys():
                 return self.translate_cash[text]
 
@@ -668,16 +669,11 @@ class FetchAkty:
                             if changed_data:
                                 leagues_data[NAME_BOOKMAKER][
                                     league_name].append(game_info)
-                        else:
-                            previous_leagues_data[NAME_BOOKMAKER][
-                                league_name].append(game_info)
-                        # Обновляем previous_leagues_data после каждой итерации
+
                         previous_leagues_data[NAME_BOOKMAKER][
                                 league_name].append(game_info)
 
         self.previous_data = previous_leagues_data
-
-        # Удаление пустых значений из словаря
         leagues_data[NAME_BOOKMAKER] = {
             k: v for k, v in leagues_data[NAME_BOOKMAKER].items() if v
         }
