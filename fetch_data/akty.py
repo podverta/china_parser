@@ -110,8 +110,8 @@ class FetchAkty:
                 data_rate['server_time'] = data.get('server_time', '')
                 json_data = json.dumps(data_rate, ensure_ascii=False)
                 await self.redis_client.add_to_list(key, json_data)
-                data_rate[opponent_0] = opponent_0
-                data_rate[opponent_1] = opponent_1
+                data_rate['opponent_0'] = opponent_0
+                data_rate['opponent_1'] = opponent_1
                 data_rate['liga'] = liga_name
                 data_rate['site'] = 'AK'
                 await send_message_to_telegram(data_rate)
