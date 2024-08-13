@@ -93,25 +93,24 @@ class FetchAkty:
                 'handicap_bet_0',
                 'handicap_bet_1'
             ]
-
+            data_rate = data.get('rate', {})
             is_save = any(
-                float(data.get(rate_bet, '0') or '0') <= 1.73 for rate_bet in
+                float(data_rate.get(rate_bet, '0') or '0') <= 1.73 for rate_bet in
                 rate_bets
             )
             if is_save:
-                print(f"Шляпа: ")
                 opponent_0 = data.get('opponent_0', '')
                 opponent_1 = data.get('opponent_1', '')
                 key = (f"akty.com, {liga_name.lower()}, "
                        f"{opponent_0.lower()}, {opponent_1.lower()}")
-                data_rate = data.get('rate', {})
+
                 data_rate['server_time'] = data.get('server_time', '')
                 json_data = json.dumps(data_rate, ensure_ascii=False)
                 if self.debug:
                     return
                 await self.redis_client.add_to_list(key, json_data)
                 is_send_tg = any(
-                    float(data.get(rate_bet, '0') or '0') <= 1.68 for rate_bet
+                    float(data_rate.get(rate_bet, '0') or '0') <= 1.68 for rate_bet
                     in rate_bets
                 )
                 if is_send_tg:
@@ -311,8 +310,7 @@ class FetchAkty:
             if (existing_dict['opponent_0'] == new_dict['opponent_0'] and
                     existing_dict['opponent_1'] == new_dict['opponent_1']):
                 if existing_dict['rate'] != new_dict['rate']:
-                    new_data = copy.deepcopy(new_dict['rate'])
-                    await self.save_games(new_data, liga_name)
+                    await self.save_games(new_dict, liga_name)
                     return True
                 return False
         return True
