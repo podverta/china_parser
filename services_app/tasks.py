@@ -11,14 +11,13 @@ from transfer_data.redis_client import RedisClient
 PARSER_TIMEOUT = 60  # Таймаут для завершения старого инстанса
 
 
-async def check_and_init_translate_cash(redis_client: RedisClient):
+async def check_and_init_translate_cash():
     """
     Проверяет наличие ключа 'translate_cash' в Redis и инициализирует его, если он отсутствует.
 
-    Args:
-        redis_client (RedisClient): Клиент Redis для выполнения операций.
     """
     # Проверяем, существует ли ключ 'translate_cash' в Redis
+    redis_client = RedisClient()
     existing_data = await redis_client.get_data('translate_cash')
 
     if existing_data is None:
@@ -237,11 +236,8 @@ def check_and_start_parsers(is_first_run: bool = False):
     inspect = current_app.control.inspect()
     active_tasks = inspect.active()  # Получаем активные задачи
 
-    # Инициализация Redis-клиента
-    redis_client = RedisClient()
-
     # Проверка и инициализация словаря translate_cash
-    asyncio.run(check_and_init_translate_cash(redis_client))
+    asyncio.run(check_and_init_translate_cash())
 
     for parser_name in parsers.keys():
         parser_tasks = []
