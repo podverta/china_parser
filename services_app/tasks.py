@@ -11,93 +11,6 @@ from transfer_data.redis_client import RedisClient
 PARSER_TIMEOUT = 60  # Таймаут для завершения старого инстанса
 
 
-async def check_and_init_translate_cash():
-    """
-    Проверяет наличие ключа 'translate_cash' в Redis и инициализирует его, если он отсутствует.
-
-    """
-    # Проверяем, существует ли ключ 'translate_cash' в Redis
-    redis_client = RedisClient()
-    existing_data = await redis_client.get_data('translate_cash')
-
-    if existing_data is None:
-        logger.info(
-            "Ключ 'translate_cash' не найден в Redis, инициализация значений.")
-        translate_cash = {
-            "骑士": "knight",
-            "海军": "navy",
-            "海鸟(女)": "seagull (female)",
-            "火烈鸟(女)": "firebird (female)",
-            "突袭者": "raider",
-            "燕子(女)": "swallow (female)",
-            "巨鸭(女)": "giant duck (female)",
-            "乌兰乌德": "ulan ude",
-            "车里雅宾斯克": "chelyabinsk",
-            "枪手": "shooter",
-            "卡卢加(女)": "kaluga (female)",
-            "伊万诺沃(女)": "ivanovo (female)",
-            "斯塔夫罗波尔": "stavropol",
-            "乌发": "ufa",
-            "奔萨(女)": "penza (female)",
-            "科斯特罗马(女)": "kostroma (female)",
-            "彼尔姆": "perm",
-            "沃罗涅日": "voronezh",
-            "伏尔加": "volga",
-            "唐": "tang",
-            "奥卡": "oka",
-            "叶尼塞": "yenisei",
-            "克拉斯诺亚尔斯克": "krasnoyarsk",
-            "奥伦堡(女)": "orenburg (female)",
-            "乌拉尔": "ural",
-            "西伯利亚": "siberia",
-            "阿斯佩塞特": "aspect",
-            "埃森图基": "essentuki",
-            "库尔斯克(女)": "kursk (female)",
-            "沃洛格达(女)": "vologda (female)",
-            "夸察加": "kachgaga",
-            "库班": "kuban",
-            "伊尔库茨克": "irkutsk",
-            "克麦罗沃": "kemerovo",
-            "艾斯贝斯特": "asbest",
-            "叶先图基": "yesentuk",
-            "萨马拉(女)": "samara (female)",
-            "叶卡捷琳堡(女)": "yekaterinburg (female)",
-            "莫斯科": "moscow",
-            "索契": "sochi",
-            "迈科普": "maykop",
-            "纳尔奇克": "nalchik",
-            "圣彼得堡": "saint petersburg",
-            "喀山": "kazan",
-            "别尔哥罗德": "belgorod",
-            "萨拉托夫": "saratov",
-            "欧姆斯克": "omsk",
-            "赤塔": "chita",
-            "鄂木斯克": "omsk",
-            "巴尔瑙尔": "barnaul",
-            "苏尔古特": "surgut",
-            "伏尔加格勒(女)": "volgograd (female)",
-            "秋明(女)": "tyumen (female)",
-            "哈巴罗夫斯克": "khabarovsk",
-            "加里宁格勒": "kaliningrad",
-            "新西伯利亚": "novosibirsk",
-            "符拉迪沃斯托克": "vladivostok",
-            "加时赛": "overtime",
-            "等待加时": "waiting for overtime",
-            "第一节": "first quarter",
-            "第二节": "second quarter",
-            "第三节": "third quarter",
-            "第四节": "fourth quarter",
-            "半场": "halftime",
-            "全场结束": "full-time",
-            "即将开赛": "about to start"
-        }
-        # Сохраняем словарь в Redis
-        await redis_client.set_data('translate_cash', json.dumps(translate_cash,
-                                                                 ensure_ascii=False))
-    else:
-        logger.info(
-            "Ключ 'translate_cash' уже существует в Redis, инициализация не требуется.")
-
 def stop_task(task_id):
     try:
         current_app.control.revoke(task_id, terminate=True)
@@ -235,9 +148,6 @@ def check_and_start_parsers(is_first_run: bool = False):
 
     inspect = current_app.control.inspect()
     active_tasks = inspect.active()  # Получаем активные задачи
-
-    # Проверка и инициализация словаря translate_cash
-    asyncio.run(check_and_init_translate_cash())
 
     for parser_name in parsers.keys():
         parser_tasks = []

@@ -8,7 +8,6 @@ import traceback
 import json
 import undetected_chromedriver as uc
 from typing import List, Dict, Any
-from translatepy import Translator
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from zoneinfo import ZoneInfo
@@ -23,6 +22,8 @@ from selenium.webdriver.common.keys import Keys
 from app.logging import setup_logger
 from transfer_data.redis_client import RedisClient
 from transfer_data.telegram_bot import send_message_to_telegram
+from scripts.translate_cash import translate_cash
+
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
@@ -72,8 +73,7 @@ class FetchAkty:
             '第四节': 'IV'
         }
         self.debug = LOCAL_DEBUG
-        self.translate_cash = {}
-        self.translator = Translator()
+        self.translate_cash = translate_cash
         self.action = ActionChains(self.driver)
         self.previous_data = {}
 
@@ -99,8 +99,8 @@ class FetchAkty:
                 rate_bets
             )
             if is_save:
-                opponent_0 = data["opponent_0"]
-                opponent_1 = data["opponent_1"]
+                opponent_0 = data.get('opponent_0', '')
+                opponent_1 = data.get('opponent_1', '')
                 key = (f"akty.com, {liga_name.lower()}, "
                        f"{opponent_0.lower()}, {opponent_1.lower()}")
                 data_rate = data.get('rate', {})
@@ -160,9 +160,6 @@ class FetchAkty:
             )
             await self.sio.connect(SOCKETIO_URL,
                                    auth={'socket_key': SOCKET_KEY})
-            data_str = await self.redis_client.get_data('translate_cash')
-            if data_str:
-                self.translate_cash = json.loads(data_str)
         except Exception as e:
             print(f"Error initializing async components: {e}")
             raise
@@ -342,37 +339,11 @@ class FetchAkty:
             text: str
     ) -> str:
         """
-        Перевод строки на Русский язык. Если строка уже переводилась,
-        забираем данные из Redis, если нет, то переводим и сохраняем.
-        Метод возвращает строку, переведенную на Русский язык.
+        Перевод строки на Русский язык.
         """
         try:
-            if not text:
-                return text
-            text = text.strip()
-            # Проверяем, есть ли текст в кэше переводов
-            if text in self.translate_cash:
-                return self.translate_cash[text]
-
-            # Пытаемся выполнить перевод
-            translation_request = self.translator.translate(text, "english")
-            translation = translation_request.result
-
-            await self.send_to_logs(f"Перевод текста {text} - {translation}")
-            self.translate_cash[text] = translation
-
-            # Если режим отладки включен, возвращаем перевод без сохранения в Redis
-            if self.debug:
-                return translation
-
-            # Сохраняем обновлённый кэш переводов в Redis
-            data_str = await self.redis_client.get_data('translate_cash')
-            if data_str:
-                self.translate_cash = json.loads(data_str)
-            self.translate_cash[text] = translation
-            json_data = json.dumps(self.translate_cash, ensure_ascii=False)
-            await self.redis_client.set_data('translate_cash', json_data)
-
+            text = text.strip() if text else ''
+            translation = self.translate_cash.get(text, '')
             return translation
 
         except Exception as e:

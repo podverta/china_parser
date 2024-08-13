@@ -21,6 +21,7 @@ from app.logging import setup_logger
 from selenium.webdriver.common.action_chains import ActionChains
 from transfer_data.redis_client import RedisClient
 from transfer_data.telegram_bot import send_message_to_telegram
+from scripts.translate_cash import translate_cash
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
@@ -70,7 +71,7 @@ class OddsFetcher:
         }
         self.debug = LOCAL_DEBUG
         self.actions = None
-        self.translate_cash = {}
+        self.translate_cash = translate_cash
         self.translator = Translator()
         self.previous_data = {}
 
@@ -234,9 +235,6 @@ class OddsFetcher:
                 f"Connecting to Socket.IO server at {SOCKETIO_URL}"
             )
             await self.sio.connect(SOCKETIO_URL, auth={'socket_key': SOCKET_KEY})
-            data_str = await self.redis_client.get_data('translate_cash')
-            if data_str:
-                self.translate_cash = json.loads(data_str)
         except Exception as e:
             print(f"Error initializing async components: {e}")
             raise
@@ -318,42 +316,27 @@ class OddsFetcher:
         """
         Получает полное название команды, используя кэш или выполнив наведение на элемент.
         """
-        if not short_name:
-            return short_name
-        short_name = short_name.strip()
-        translation = ""
-        if short_name in self.translate_cash.keys():
-            return self.translate_cash[short_name]
-        time.sleep(1)
-        team1_element = self.driver.find_element(By.XPATH, f"//*[text()='{short_name}']")
-        if self.actions is None:
-            self.actions = ActionChains(self.driver)
-        self.actions.move_to_element(team1_element).perform()
-        time.sleep(2)
-        full_name_element = self.driver.execute_script("""
-                   var tooltip = document.querySelector('div[role="complementary"].q-tooltip--style.q-position-engine.no-pointer-events[style*="visibility: visible"]');
-                   if (tooltip) {
-                       return tooltip.textContent.trim();
-                   } else {
-                       return null;
-                   }
-               """)
-        if full_name_element:
-            translation_request = self.translator.translate(
-                full_name_element,
-                "english"
-            )
-            translation = translation_request.result
-        if translation:
-            self.translate_cash[short_name] = translation
-            if self.debug:
-                return translation
-            json_data = json.dumps(self.translate_cash, ensure_ascii=False)
-            await self.redis_client.set_data('translate_cash', json_data)
-            await self.send_to_logs(f"Перевод текста {short_name}"
-                                    f" - {translation}")
-            return translation
-        return None
+        short_name = short_name.strip() if short_name else ''
+        translation = self.translate_cash.get(short_name, '')
+        if not translation:
+            await self.send_to_logs(
+                f"Перевод текста: текст: {short_name} перевод: {translation}")
+            team1_element = self.driver.find_element(By.XPATH, f"//*[text()='{short_name}']")
+            if self.actions is None:
+                self.actions = ActionChains(self.driver)
+            self.actions.move_to_element(team1_element).perform()
+            time.sleep(2)
+            full_name_element = self.driver.execute_script("""
+                       var tooltip = document.querySelector('div[role="complementary"].q-tooltip--style.q-position-engine.no-pointer-events[style*="visibility: visible"]');
+                       if (tooltip) {
+                           return tooltip.textContent.trim();
+                       } else {
+                           return null;
+                       }
+                   """)
+            translation = self.translate_cash.get(full_name_element, '')
+        return translation
+
 
     async def check_changed_dict(
             self,
