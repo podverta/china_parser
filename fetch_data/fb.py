@@ -314,11 +314,13 @@ class OddsFetcher:
             self,
             short_name: str
     ) -> str:
+
         """
         Получает полное название команды, используя кэш или выполнив наведение на элемент.
         """
         if not short_name:
             return short_name
+        short_name = short_name.strip()
         translation = ""
         if short_name in self.translate_cash.keys():
             return self.translate_cash[short_name]

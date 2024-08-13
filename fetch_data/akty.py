@@ -349,7 +349,7 @@ class FetchAkty:
         try:
             if not text:
                 return text
-
+            text = text.strip()
             # Проверяем, есть ли текст в кэше переводов
             if text in self.translate_cash:
                 return self.translate_cash[text]
