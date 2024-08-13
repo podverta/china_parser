@@ -166,9 +166,10 @@ class OddsFetcher:
                 'handicap_bet_0',
                 'handicap_bet_1'
             ]
-
             is_save = any(
-                float(data.get(rate_bet, 0)) <= 1.73 for rate_bet in rate_bets)
+                float(data.get(rate_bet, '0') or '0') <= 1.73 for rate_bet in
+                rate_bets
+            )
             if is_save:
                 opponent_0 = data["opponent_0"]
                 opponent_1 = data["opponent_1"]
@@ -181,8 +182,9 @@ class OddsFetcher:
                     return
                 await self.redis_client.add_to_list(key, json_data)
                 is_send_tg = any(
-                    float(data.get(rate_bet, 0)) <= 1.68 for rate_bet in
-                    rate_bets)
+                    float(data.get(rate_bet, '0') or '0') <= 1.68 for rate_bet
+                    in rate_bets
+                )
                 if is_send_tg:
                     data_rate['opponent_0'] = opponent_0
                     data_rate['opponent_1'] = opponent_1
