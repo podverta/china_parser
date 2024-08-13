@@ -87,7 +87,6 @@ class FetchAkty:
         """
         try:
 
-            # Список ключей, которые нас интересуют для проверки условий ставок
             rate_bets = [
                 'total_bet_0',
                 'total_bet_1',
@@ -95,25 +94,28 @@ class FetchAkty:
                 'handicap_bet_1'
             ]
 
-            # Проверяем, нужно ли сохранять данные
             is_save = any(
-                float(data.get(rate_bet, 0)) <= 1.68 for rate_bet in rate_bets)
-            opponent_0 = data["opponent_0"]
-            opponent_1 = data["opponent_1"]
+                float(data.get(rate_bet, 0)) <= 1.73 for rate_bet in rate_bets)
             if is_save:
+                opponent_0 = data["opponent_0"]
+                opponent_1 = data["opponent_1"]
                 key = (f"akty.com, {liga_name.lower()}, "
                        f"{opponent_0.lower()}, {opponent_1.lower()}")
                 data_rate = data.get('rate', {})
                 data_rate['server_time'] = data.get('server_time', '')
                 json_data = json.dumps(data_rate, ensure_ascii=False)
-                data_rate['opponent_0'] = opponent_0
-                data_rate['opponent_1'] = opponent_1
-                data_rate['liga'] = liga_name
-                data_rate['site'] = 'OB'
                 if self.debug:
                     return
-                await send_message_to_telegram(data_rate)
                 await self.redis_client.add_to_list(key, json_data)
+                is_send_tg = any(
+                    float(data.get(rate_bet, 0)) <= 1.68 for rate_bet in
+                    rate_bets)
+                if is_send_tg:
+                    data_rate['opponent_0'] = opponent_0
+                    data_rate['opponent_1'] = opponent_1
+                    data_rate['liga'] = liga_name
+                    data_rate['site'] = 'OB'
+                    await send_message_to_telegram(data_rate)
 
         except Exception as e:
             await self.send_to_logs(f'Ошибка при сохранении данных: {str(e)}')
@@ -344,27 +346,37 @@ class FetchAkty:
         try:
             if not text:
                 return text
-            if text in self.translate_cash.keys():
+
+            # Проверяем, есть ли текст в кэше переводов
+            if text in self.translate_cash:
                 return self.translate_cash[text]
 
-            translation_request = self.translator.translate(
-                text,
-                "english"
-            )
+            # Пытаемся выполнить перевод
+            translation_request = self.translator.translate(text, "english")
             translation = translation_request.result
+
             await self.send_to_logs(f"Перевод текста {text} - {translation}")
             self.translate_cash[text] = translation
+
+            # Если режим отладки включен, возвращаем перевод без сохранения в Redis
             if self.debug:
                 return translation
+
+            # Сохраняем обновлённый кэш переводов в Redis
             data_str = await self.redis_client.get_data('translate_cash')
             if data_str:
                 self.translate_cash = json.loads(data_str)
             self.translate_cash[text] = translation
             json_data = json.dumps(self.translate_cash, ensure_ascii=False)
             await self.redis_client.set_data('translate_cash', json_data)
+
             return translation
+
         except Exception as e:
-            await self.send_to_logs(f"Ошибка при переводе: {e}, текст {text}")
+            # Логируем ошибку с подробной информацией
+            await self.send_to_logs(
+                f"Ошибка при переводе: {e}, текст: '{text}'")
+            return text  # Возвращаем исходный текст в случае ошибки
 
     async def main_page(
             self
