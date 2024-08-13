@@ -312,7 +312,8 @@ class FetchAkty:
         забираем данные из Redis, если нет, то переводим и сохраняем.
         Метод возвращает строку, переведенную на Русский язык.
         """
-
+        if not text:
+            return text
         if text in self.translate_cash.keys():
             return self.translate_cash[text]
 
