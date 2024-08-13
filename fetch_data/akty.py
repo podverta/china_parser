@@ -99,6 +99,7 @@ class FetchAkty:
                 rate_bets
             )
             if is_save:
+                print(f"Шляпа: ")
                 opponent_0 = data.get('opponent_0', '')
                 opponent_1 = data.get('opponent_1', '')
                 key = (f"akty.com, {liga_name.lower()}, "
@@ -310,7 +311,8 @@ class FetchAkty:
             if (existing_dict['opponent_0'] == new_dict['opponent_0'] and
                     existing_dict['opponent_1'] == new_dict['opponent_1']):
                 if existing_dict['rate'] != new_dict['rate']:
-                    await self.save_games(new_dict, liga_name)
+                    new_data = copy.deepcopy(new_dict['rate'])
+                    await self.save_games(new_data, liga_name)
                     return True
                 return False
         return True

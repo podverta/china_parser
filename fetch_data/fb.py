@@ -357,8 +357,8 @@ class OddsFetcher:
             if (existing_dict['opponent_0'] == new_dict['opponent_0'] and
                     existing_dict['opponent_1'] == new_dict['opponent_1']):
                 if existing_dict['rate'] != new_dict['rate']:
-                    # Сохраняем данные в Redis
-                    await self.save_games(new_dict, liga_name)
+                    new_data = copy.deepcopy(new_dict['rate'])
+                    await self.save_games(new_data, liga_name)
                     return True
                 return False
         return True
