@@ -109,7 +109,7 @@ class FetchAkty:
                 data_rate['opponent_0'] = opponent_0
                 data_rate['opponent_1'] = opponent_1
                 data_rate['liga'] = liga_name
-                data_rate['site'] = 'AK'
+                data_rate['site'] = 'OB'
                 if self.debug:
                     return
                 await send_message_to_telegram(data_rate)
@@ -525,6 +525,7 @@ class FetchAkty:
             await self.send_to_logs(
                 f'При переключении произошла ошибка: {e}'
             )
+            await self.run()
 
     async def extract_league_data(
             self,
