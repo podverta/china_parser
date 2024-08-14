@@ -17,7 +17,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, WebDriverException
+from selenium.common.exceptions import TimeoutException, WebDriverException, NoSuchElementException
 from selenium.webdriver.common.keys import Keys
 from app.logging import setup_logger
 from transfer_data.redis_client import RedisClient
@@ -83,10 +83,9 @@ class FetchAkty:
 
         Args:
             data (dict): Данные в формате JSON для сохранения.
-            liga_name (str): Наименование лиги для сохранения в redis
+            liga_name (str): Наименование лиги для сохранения в redis.
         """
         try:
-
             rate_bets = [
                 'total_bet_0',
                 'total_bet_1',
@@ -94,9 +93,18 @@ class FetchAkty:
                 'handicap_bet_1'
             ]
             data_rate = data.get('rate', {})
+
+            def safe_float(value):
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return None
+
+            # Проверяем, нужно ли сохранять данные в Redis
             is_save = any(
-                float(data_rate.get(rate_bet, '0') or '0') <= 1.73 for rate_bet in
-                rate_bets
+                safe_float(data_rate.get(rate_bet, '0')) is not None and
+                safe_float(data_rate.get(rate_bet, '0')) <= 1.73
+                for rate_bet in rate_bets
             )
             if is_save:
                 opponent_0 = data.get('opponent_0', '')
@@ -106,12 +114,14 @@ class FetchAkty:
 
                 data_rate['server_time'] = data.get('server_time', '')
                 json_data = json.dumps(data_rate, ensure_ascii=False)
-                if self.debug:
-                    return
-                await self.redis_client.add_to_list(key, json_data)
+                if not self.debug:
+                    await self.redis_client.add_to_list(key, json_data)
+
+                # Проверяем, нужно ли отправить данные в Telegram
                 is_send_tg = any(
-                    float(data_rate.get(rate_bet, '0') or '0') <= 1.68 for rate_bet
-                    in rate_bets
+                    safe_float(data_rate.get(rate_bet, '0')) is not None and
+                    safe_float(data_rate.get(rate_bet, '0')) <= 1.68
+                    for rate_bet in rate_bets
                 )
                 if is_send_tg:
                     data_rate['opponent_0'] = opponent_0
@@ -251,7 +261,7 @@ class FetchAkty:
             self,
             by: By,
             value: str,
-            timeout: int = 10,
+            timeout: int = 10
     ) -> WebElement:
         """
         Ожидает загрузки элемента на странице по заданным критериям.
@@ -259,7 +269,6 @@ class FetchAkty:
         :param by: Стратегия поиска элемента (например, By.CSS_SELECTOR).
         :param value: Значение для поиска элемента.
         :param timeout: Время ожидания в секундах (по умолчанию 10 секунд).
-        :param is_debug: Для остановки во время отладки.
         :return: Найденный элемент или None,
         если элемент не был найден в течение заданного времени.
         """
@@ -267,6 +276,14 @@ class FetchAkty:
             element = WebDriverWait(self.driver, timeout).until(
                 EC.presence_of_element_located((by, value))
             )
+            # Проверяем наличие элемента с сообщением о входе в другой сессии
+            if await self.is_logged_in_elsewhere():
+
+                await self.send_to_logs(
+                    "Обнаружено сообщение о входе в другом месте. Перезапуск парсера."
+                )
+                await self.run()
+
             return element
         except TimeoutException:
             print(
@@ -277,6 +294,22 @@ class FetchAkty:
                 self.driver.quit()
             else:
                 breakpoint()
+
+    async def is_logged_in_elsewhere(self) -> bool:
+        """
+        Проверяет, отображается ли на странице сообщение о входе в другом месте.
+
+        :return: True, если сообщение отображается, иначе False.
+        """
+        try:
+            message_element = self.driver.find_element(By.CSS_SELECTOR,
+                                                       ".ant-mowin-s2-messageBox")
+            if message_element and "账户在其它地方登录" in message_element.text:
+                print(message_element.text())
+                return True
+        except NoSuchElementException:
+            return False
+        return False
 
     async def send_to_logs(
             self,

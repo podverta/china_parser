@@ -88,6 +88,7 @@ class OddsFetcher:
     async def get_url(self):
         """
         Загружает основную страницу по заданному URL с проверкой на элемент загрузки.
+        Если элемент загрузки виден слишком долго, перезагружает страницу.
         """
         max_retries = 3
         wait_time = 10  # Время ожидания для исчезновения элемента
@@ -100,16 +101,16 @@ class OddsFetcher:
                 # Перезагрузка страницы
                 self.driver.get(self.url)
 
-                # Явное ожидание появления и исчезновения элемента загрузки
-                try:
-                    WebDriverWait(self.driver, wait_time).until(
-                        EC.presence_of_element_located((
-                            By.CSS_SELECTOR,
-                            'div.q-loading.fullscreen.column.flex-center.z-max.text-black'
-                        ))
-                    )
+                # Явное ожидание появления элемента загрузки
+                WebDriverWait(self.driver, wait_time).until(
+                    EC.presence_of_element_located((
+                        By.CSS_SELECTOR,
+                        'div.q-loading.fullscreen.column.flex-center.z-max.text-black'
+                    ))
+                )
 
-                    # Дополнительное ожидание исчезновения элемента
+                # Ожидание исчезновения элемента загрузки
+                try:
                     WebDriverWait(self.driver, wait_time).until_not(
                         EC.visibility_of_element_located((
                             By.CSS_SELECTOR,
@@ -149,7 +150,8 @@ class OddsFetcher:
                 f"Не удалось загрузить страницу без элемента загрузки после {max_retries} попыток"
             )
             raise Exception(
-                "Не удалось загрузить страницу без элемента загрузки.")
+                "Не удалось загрузить страницу без элемента загрузки."
+            )
 
     async def save_games(self, data: dict, liga_name: str):
         """
@@ -157,7 +159,7 @@ class OddsFetcher:
 
         Args:
             data (dict): Данные в формате JSON для сохранения.
-            liga_name (str): Наименование лиги для сохранения в redis
+            liga_name (str): Наименование лиги для сохранения в redis.
         """
         try:
             rate_bets = [
@@ -167,30 +169,41 @@ class OddsFetcher:
                 'handicap_bet_1'
             ]
             data_rate = data.get('rate', {})
+
+            def safe_float(value):
+                try:
+                    return float(value)
+                except (ValueError, TypeError):
+                    return None
+
+            # Проверяем, нужно ли сохранять данные в Redis
             is_save = any(
-                float(data_rate.get(rate_bet, '0') or '0') <= 1.73 for rate_bet in
-                rate_bets
+                safe_float(data_rate.get(rate_bet, '0')) is not None and
+                safe_float(data_rate.get(rate_bet, '0')) <= 1.73
+                for rate_bet in rate_bets
             )
             if is_save:
-                opponent_0 = data["opponent_0"]
-                opponent_1 = data["opponent_1"]
+                opponent_0 = data.get('opponent_0', '')
+                opponent_1 = data.get('opponent_1', '')
                 key = (f"akty.com, {liga_name.lower()}, "
                        f"{opponent_0.lower()}, {opponent_1.lower()}")
 
                 data_rate['server_time'] = data.get('server_time', '')
                 json_data = json.dumps(data_rate, ensure_ascii=False)
-                if self.debug:
-                    return
-                await self.redis_client.add_to_list(key, json_data)
+                if not self.debug:
+                    await self.redis_client.add_to_list(key, json_data)
+
+                # Проверяем, нужно ли отправить данные в Telegram
                 is_send_tg = any(
-                    float(data_rate.get(rate_bet, '0') or '0') <= 1.68 for rate_bet
-                    in rate_bets
+                    safe_float(data_rate.get(rate_bet, '0')) is not None and
+                    safe_float(data_rate.get(rate_bet, '0')) <= 1.68
+                    for rate_bet in rate_bets
                 )
                 if is_send_tg:
                     data_rate['opponent_0'] = opponent_0
                     data_rate['opponent_1'] = opponent_1
                     data_rate['liga'] = liga_name
-                    data_rate['site'] = 'OB'
+                    data_rate['site'] = 'FB'
                     await send_message_to_telegram(data_rate)
 
         except Exception as e:
@@ -270,11 +283,8 @@ class OddsFetcher:
         """
         try:
             element = WebDriverWait(self.driver, timeout).until(
-                EC.element_to_be_clickable(
-                    (By.CSS_SELECTOR,
-                     '.ui-carousel-item.sport-type-item img[src="sport-svg/sport_id_3.svg"]'))
+                EC.presence_of_element_located((by, value))
             )
-
             return element
         except TimeoutException:
             return None
@@ -316,11 +326,9 @@ class OddsFetcher:
         """
         Получает полное название команды, используя кэш или выполнив наведение на элемент.
         """
-        short_name = short_name.strip() if short_name else ''
+        short_name = short_name.replace(' ', '')
         translation = self.translate_cash.get(short_name, '')
         if not translation:
-            await self.send_to_logs(
-                f"Перевод текста: текст: {short_name} перевод: {translation}")
             team1_element = self.driver.find_element(By.XPATH, f"//*[text()='{short_name}']")
             if self.actions is None:
                 self.actions = ActionChains(self.driver)
@@ -335,6 +343,9 @@ class OddsFetcher:
                        }
                    """)
             translation = self.translate_cash.get(full_name_element, '')
+            if not translation:
+                await self.send_to_logs(
+                    f"Перевод текста: текст: {short_name} перевод: {translation}")
         return translation
 
 

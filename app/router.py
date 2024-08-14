@@ -1,6 +1,7 @@
+import os
 import aiofiles
-import json
-from typing import Any, List
+import subprocess
+import dotenv
 from fastapi import APIRouter, HTTPException
 from services_app.tasks import parse_some_data
 from app.schema import ParserRequest
@@ -114,3 +115,40 @@ async def get_game(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@route.post("/update-token/")
+async def update_token(new_token: str):
+    """
+    Эндпоинт для обновления токена в файле .env и перезапуска приложения.
+
+    Args:
+        new_token (str): Новый токен для обновления.
+
+    Returns:
+        dict: Статус обновления токена.
+    """
+    env_file_path = '/var/www/fastuser/data/www/api.parserchina.com/china_parser/.env'
+    service_name = 'api.parserchina.service'
+
+    try:
+        # Загружаем текущее содержимое файла .env
+        dotenv.load_dotenv(env_file_path)
+
+        # Обновляем значение токена в окружении
+        os.environ['TELEGRAM_BOT_TOKEN'] = new_token
+
+        # Записываем обновленный токен в файл .env
+        async with aiofiles.open(env_file_path, mode='w') as env_file:
+            for key, value in os.environ.items():
+                if key == 'TELEGRAM_BOT_TOKEN':
+                    await env_file.write(f'TELEGRAM_BOT_TOKEN={new_token}\n')
+                else:
+                    await env_file.write(f'{key}={value}\n')
+
+        # Перезапуск systemd-сервиса
+        subprocess.run(["systemctl", "restart", service_name])
+
+        return {"status": "Token updated and application is restarting"}
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error updating token: {str(e)}")
