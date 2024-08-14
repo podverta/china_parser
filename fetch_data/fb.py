@@ -326,7 +326,7 @@ class OddsFetcher:
         """
         Получает полное название команды, используя кэш или выполнив наведение на элемент.
         """
-        short_name = short_name.replace(' ', '')
+        short_name = short_name.translate(str.maketrans('', '', ' (),女'))
         translation = self.translate_cash.get(short_name, '')
         if not translation:
             team1_element = self.driver.find_element(By.XPATH, f"//*[text()='{short_name}']")
