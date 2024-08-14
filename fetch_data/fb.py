@@ -18,10 +18,9 @@ from selenium.webdriver.remote.webelement import WebElement
 from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.support import expected_conditions as EC
 from app.logging import setup_logger
-from selenium.webdriver.common.action_chains import ActionChains
 from transfer_data.redis_client import RedisClient
 from transfer_data.telegram_bot import send_message_to_telegram
-from scripts.translate_cash import translate_cash
+from scripts.translate_cash_load import save_translate_cash, load_translate_cash
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
@@ -71,9 +70,9 @@ class OddsFetcher:
         }
         self.debug = LOCAL_DEBUG
         self.actions = None
-        self.translate_cash = translate_cash
         self.translator = Translator()
         self.previous_data = {}
+        self.translate_cash = load_translate_cash()
 
     async def get_driver(
             self,
@@ -245,6 +244,7 @@ class OddsFetcher:
         """
         Инициализация асинхронных компонентов, таких как Redis клиент и подключение к Socket.IO.
         """
+
         if self.debug:
             return None
         try:
@@ -329,34 +329,47 @@ class OddsFetcher:
             self,
             short_name: str
     ) -> str:
-
         """
-        Получает полное название команды, используя кэш или выполнив наведение на элемент.
+        Получает полное название команды, используя кэш или выполнив перевод текста на английский.
+        Если частичное совпадение с ключом найдено, возвращает значение.
+        Если перевод не найден, переводит текст на английский и добавляет в кэш.
+
+        Args:
+            short_name (str): Короткое название команды.
+
+        Returns:
+            str: Полное название команды на английском языке.
         """
         if not short_name:
             return short_name
-        short_name = short_name.replace(' ', '')
-        translation = self.translate_cash.get(short_name, '')
-        if not translation:
-            team1_element = self.driver.find_element(By.XPATH, f"//*[text()='{short_name}']")
-            if self.actions is None:
-                self.actions = ActionChains(self.driver)
-            self.actions.move_to_element(team1_element).perform()
-            time.sleep(2)
-            full_name_element = self.driver.execute_script("""
-                       var tooltip = document.querySelector('div[role="complementary"].q-tooltip--style.q-position-engine.no-pointer-events[style*="visibility: visible"]');
-                       if (tooltip) {
-                           return tooltip.textContent.trim();
-                       } else {
-                           return null;
-                       }
-                   """)
-            translation = self.translate_cash.get(full_name_element, '')
-            print("TRANSLATION - 2", translation, short_name)
-            if not translation:
-                await self.send_to_logs(
-                    f"Перевод текста: текст: {short_name} перевод: {translation}")
-        return translation
+
+        # Убираем символы из short_name
+        sanitized_name = short_name.translate(str.maketrans('', '', ' (),女')).lower()
+
+        # Ищем частичное совпадение
+        for key in self.translate_cash:
+            if sanitized_name in key:
+                return self.translate_cash[key]
+
+        # Если совпадение не найдено, выполняем перевод
+
+        try:
+            translation = self.translator.translate(sanitized_name, "english").result
+            self.translate_cash = load_translate_cash()
+            self.translate_cash[sanitized_name] = translation.lower()
+            save_translate_cash(self.translate_cash)
+
+            # Логируем новый перевод
+            await self.send_to_logs(
+                f"Перевод текста: текст: {sanitized_name} перевод: {translation}")
+
+            return translation
+
+        except Exception as e:
+            # Логируем ошибку перевода
+            await self.send_to_logs(
+                f"Ошибка перевода текста: {short_name}, ошибка: {str(e)}")
+            return short_name
 
 
     async def check_changed_dict(

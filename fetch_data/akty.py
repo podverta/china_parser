@@ -8,6 +8,7 @@ import traceback
 import json
 import undetected_chromedriver as uc
 from typing import List, Dict, Any
+from translatepy import Translator
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from zoneinfo import ZoneInfo
@@ -22,7 +23,7 @@ from selenium.webdriver.common.keys import Keys
 from app.logging import setup_logger
 from transfer_data.redis_client import RedisClient
 from transfer_data.telegram_bot import send_message_to_telegram
-from scripts.translate_cash import translate_cash
+from scripts.translate_cash_load import load_translate_cash, save_translate_cash
 
 
 # Загрузка переменных окружения из .env файла
@@ -46,6 +47,7 @@ REDIS_URL = os.getenv('REDIS_URL')
 SOCKETIO_URL = os.getenv('SOCKETIO_URL')
 SOCKET_KEY = os.getenv('SOCKET_KEY')
 HEADLESS = True
+
 
 class FetchAkty:
     def __init__(
@@ -73,9 +75,11 @@ class FetchAkty:
             '第四节': 'IV'
         }
         self.debug = LOCAL_DEBUG
-        self.translate_cash = translate_cash
+        self.translate_cash = None
         self.action = ActionChains(self.driver)
         self.previous_data = {}
+        self.translator = Translator()
+        self.translate_cash = load_translate_cash()
 
     async def save_games(self, data: dict, liga_name: str):
         """
@@ -375,15 +379,26 @@ class FetchAkty:
         Перевод строки на Русский язык.
         """
         try:
-            text = text.strip() if text else ''
-            translation = self.translate_cash.get(text, '')
+            if not text:
+                return text
+            sanitized_name = text.translate(str.maketrans('', '', ' (),女')).lower()
+            for key in self.translate_cash:
+                if key in sanitized_name:
+                    return self.translate_cash[key]
+
+            translation = self.translator.translate(sanitized_name, "english").result
+            self.translate_cash = load_translate_cash()
+            self.translate_cash[sanitized_name] = translation.lower()
+            save_translate_cash(self.translate_cash)
+            await self.send_to_logs(
+                f"Перевод текста: '{sanitized_name}' перевод: '{translation}'")
+
             return translation
 
         except Exception as e:
-            # Логируем ошибку с подробной информацией
             await self.send_to_logs(
-                f"Ошибка при переводе: {e}, текст: '{text}'")
-            return text  # Возвращаем исходный текст в случае ошибки
+                f"Ошибка при переводе: {e}, текст: '{sanitized_name}'")
+            return text
 
     async def main_page(
             self
