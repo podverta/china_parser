@@ -102,40 +102,47 @@ class OddsFetcher:
                 self.driver.get(self.url)
 
                 # Явное ожидание появления элемента загрузки
-                WebDriverWait(self.driver, wait_time).until(
+                loading_element = WebDriverWait(self.driver, wait_time).until(
                     EC.presence_of_element_located((
                         By.CSS_SELECTOR,
                         'div.q-loading.fullscreen.column.flex-center.z-max.text-black'
                     ))
                 )
 
-                # Ожидание исчезновения элемента загрузки
-                try:
-                    WebDriverWait(self.driver, wait_time).until_not(
-                        EC.visibility_of_element_located((
-                            By.CSS_SELECTOR,
-                            'div.q-loading.fullscreen.column.flex-center.z-max.text-black'
-                        ))
-                    )
+                if loading_element and loading_element.is_displayed():
+                    # Ожидание исчезновения элемента загрузки
+                    try:
+                        WebDriverWait(self.driver, wait_time).until_not(
+                            EC.visibility_of(loading_element)
+                        )
 
-                    # Логируем успешную загрузку
+                        # Логируем успешную загрузку
+                        await self.send_to_logs(
+                            f"Элемент загрузки исчез, страница загружена {self.url} "
+                            f"(попытка {attempt + 1})"
+                        )
+                        break  # Элемент загрузки исчез, продолжаем выполнение
+
+                    except TimeoutException:
+                        # Элемент загрузки не исчез
+                        await self.send_to_logs(
+                            f"Элемент загрузки не исчез на странице {self.url}, "
+                            f"перезагрузка страницы... (попытка {attempt + 1})"
+                        )
+
+                        # Явное обновление страницы
+                        self.driver.refresh()
+                        await asyncio.sleep(
+                            5)  # Ожидание перед повторной попыткой
+                        continue  # Перезагрузка страницы и повторная попытка
+
+                else:
+                    # Если элемент загрузки не найден или уже не виден
                     await self.send_to_logs(
-                        f"Элемент загрузки исчез, страница загружена {self.url} "
-                        f"(попытка {attempt + 1})"
+                        f"Элемент загрузки не найден или не виден. "
+                        f"Продолжаем выполнение (попытка {attempt + 1})"
                     )
-                    break  # Элемент загрузки исчез, продолжаем выполнение
-
-                except TimeoutException:
-                    # Элемент загрузки не исчез
-                    await self.send_to_logs(
-                        f"Элемент загрузки не исчез на странице {self.url}, "
-                        f"перезагрузка страницы... (попытка {attempt + 1})"
-                    )
-
-                    # Явное обновление страницы
-                    self.driver.refresh()
-                    await asyncio.sleep(5)  # Ожидание перед повторной попыткой
-                    continue  # Перезагрузка страницы и повторная попытка
+                    break
 
             except Exception as e:
                 await self.send_to_logs(
@@ -326,7 +333,9 @@ class OddsFetcher:
         """
         Получает полное название команды, используя кэш или выполнив наведение на элемент.
         """
-        short_name = short_name.translate(str.maketrans('', '', ' (),女'))
+        if not short_name:
+            return short_name
+        short_name = short_name.replace(' ', '')
         translation = self.translate_cash.get(short_name, '')
         if not translation:
             team1_element = self.driver.find_element(By.XPATH, f"//*[text()='{short_name}']")
@@ -343,6 +352,7 @@ class OddsFetcher:
                        }
                    """)
             translation = self.translate_cash.get(full_name_element, '')
+            print("TRANSLATION - 2", translation, short_name)
             if not translation:
                 await self.send_to_logs(
                     f"Перевод текста: текст: {short_name} перевод: {translation}")
