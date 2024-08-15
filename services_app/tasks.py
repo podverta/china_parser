@@ -1,29 +1,23 @@
-import json
 import asyncio
 import time
 import urllib3
 from celery import current_app
 from services_app.celery_app import celery_app, logger, redis_client
 from fetch_data.parsers import parsers
-from transfer_data.redis_client import RedisClient
 
 
 PARSER_TIMEOUT = 60  # Таймаут для завершения старого инстанса
 
+
 @celery_app.task(bind=True, queue='akty_queue')
 def check_and_start_parsers_akty(self, is_first_run: bool = False):
-    """
-    Проверяет активные задачи парсера FetchAkty и запускает его, если он не работает.
-    """
-    check_and_start_parsers(self, 'FetchAkty', is_first_run)
-
+    check_and_start_parsers('FetchAkty', is_first_run)
 
 @celery_app.task(bind=True, queue='fb_queue')
 def check_and_start_parsers_fb(self, is_first_run: bool = False):
-    """
-    Проверяет активные задачи парсера FB и запускает его, если он не работает.
-    """
-    check_and_start_parsers(self, 'FB', is_first_run)
+    check_and_start_parsers('FB', is_first_run)
+
+
 def stop_task(task_id):
     try:
         current_app.control.revoke(task_id, terminate=True)
@@ -148,11 +142,10 @@ def parse_some_data(self, parser_name, *args, **kwargs):
         clear_task_metadata(self.request.id)
 
 
-def check_and_start_parsers(self, parser_name: str, is_first_run: bool = False):
+def check_and_start_parsers(parser_name: str, is_first_run: bool = False):
     """
     Проверяет активные задачи для указанного парсера и запускает новую задачу, если она не работает.
 
-    :param self: Ссылка на текущий экземпляр задачи.
     :param parser_name: Имя класса парсера, который необходимо проверить и запустить.
     :param is_first_run: Флаг первого запуска для удаления старых ключей метаданных.
     """
