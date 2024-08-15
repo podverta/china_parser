@@ -13,9 +13,30 @@ PARSER_TIMEOUT = 60  # Таймаут для завершения старого
 def check_and_start_parsers_akty(self, is_first_run: bool = False):
     check_and_start_parsers('FetchAkty', is_first_run)
 
+
 @celery_app.task(bind=True, queue='fb_queue')
 def check_and_start_parsers_fb(self, is_first_run: bool = False):
     check_and_start_parsers('FB', is_first_run)
+
+
+@celery_app.task(bind=True, queue='akty_queue', max_retries=5, default_retry_delay=60)
+def parse_some_data_akty(self, *args, **kwargs):
+    _parse_some_data(self, 'FetchAkty', *args, **kwargs)
+
+
+@celery_app.task(bind=True, queue='fb_queue', max_retries=5, default_retry_delay=60)
+def parse_some_data_fb(self, *args, **kwargs):
+    _parse_some_data(self, 'FB', *args, **kwargs)
+
+
+@celery_app.task(bind=True, queue='akty_queue', max_retries=5, default_retry_delay=60)
+def schedule_stop_previous_instance_akty(self, parser_name, previous_task_id):
+    _schedule_stop_previous_instance(self, parser_name, previous_task_id)
+
+
+@celery_app.task(bind=True, queue='fb_queue', max_retries=5, default_retry_delay=60)
+def schedule_stop_previous_instance_fb(self, parser_name, previous_task_id):
+    _schedule_stop_previous_instance(self, parser_name, previous_task_id)
 
 
 def stop_task(task_id):
@@ -47,8 +68,7 @@ def delete_celery_task_meta_keys():
         logger.error(f"Ошибка при удалении ключей celery-task-meta: {e}")
 
 
-@celery_app.task(bind=True, max_retries=5, default_retry_delay=60)
-def schedule_stop_previous_instance(self, parser_name, previous_task_id):
+def _schedule_stop_previous_instance(self, parser_name, previous_task_id):
     """
     Планирует остановку предыдущего инстанса парсера через минуту.
 
@@ -57,24 +77,17 @@ def schedule_stop_previous_instance(self, parser_name, previous_task_id):
     :param previous_task_id: ID предыдущего таска парсера.
     """
     try:
-        logger.info(
-            f"Запланирована остановка предыдущей задачи {previous_task_id} "
-            f"для парсера {parser_name} через {PARSER_TIMEOUT} секунд.")
+        logger.info(f"Запланирована остановка предыдущей задачи {previous_task_id} для парсера {parser_name} через {PARSER_TIMEOUT} секунд.")
         time.sleep(PARSER_TIMEOUT)
         stop_task(previous_task_id)
         clear_task_metadata(previous_task_id)
-        logger.info(
-            f"Предыдущая задача {previous_task_id} для парсера "
-            f"{parser_name} остановлена.")
+        logger.info(f"Предыдущая задача {previous_task_id} для парсера {parser_name} остановлена.")
     except Exception as e:
-        logger.error(
-            f"Ошибка при остановке предыдущего инстанса"
-            f" парсера {parser_name}: {e}")
+        logger.error(f"Ошибка при остановке предыдущего инстанса парсера {parser_name}: {e}")
         self.retry(exc=e)
 
 
-@celery_app.task(bind=True, max_retries=5, default_retry_delay=60)
-def parse_some_data(self, parser_name, *args, **kwargs):
+def _parse_some_data(self, parser_name, *args, **kwargs):
     """
     Запуск парсера для обработки данных.
 
@@ -96,13 +109,12 @@ def parse_some_data(self, parser_name, *args, **kwargs):
         previous_task_id = redis_client.get(f"active_parser_{parser_name}")
         if previous_task_id:
             previous_task_id = previous_task_id.decode()
-            if previous_task_id != self.request.id and not kwargs.get(
-                    'is_first_run', False):
+            if previous_task_id != self.request.id and not kwargs.get('is_first_run', False):
                 logger.info(
                     f"Найдена предыдущая задача {previous_task_id} "
                     f"для парсера {parser_name}, планируется остановка.")
                 # Запускаем таск для остановки предыдущего инстанса через минуту
-                schedule_stop_previous_instance.apply_async(
+                _schedule_stop_previous_instance.apply_async(
                     (parser_name, previous_task_id), countdown=60)
             else:
                 logger.info(
@@ -110,27 +122,22 @@ def parse_some_data(self, parser_name, *args, **kwargs):
                     f"остановка предыдущей задачи {previous_task_id} "
                     f"для парсера {parser_name} не требуется.")
         else:
-            logger.info(
-                f"Предыдущая задача для парсера {parser_name} не найдена.")
+            logger.info(f"Предыдущая задача для парсера {parser_name} не найдена.")
 
         # Удаление is_first_run из kwargs перед созданием парсера
         kwargs.pop('is_first_run', None)
 
         # Сохраняем текущий task_id в Redis сразу
         redis_client.set(f"active_parser_{parser_name}", self.request.id)
-        logger.info(
-            f"Установлена активная задача {self.request.id} "
-            f"для парсера {parser_name} в Redis.")
+        logger.info(f"Установлена активная задача {self.request.id} для парсера {parser_name} в Redis.")
 
         # Создаем новый инстанс парсера и запускаем его
         parser = parser_class(*args, **kwargs)
         asyncio.run(parser.run())
-        logger.info(
-            f"Парсер {parser_name} с task_id {self.request.id} успешно завершен.")
+        logger.info(f"Парсер {parser_name} с task_id {self.request.id} успешно завершен.")
 
     except urllib3.exceptions.ProtocolError as e:
-        logger.error(
-            f"Ошибка протокола при выполнении парсера {parser_name}: {e}")
+        logger.error(f"Ошибка протокола при выполнении парсера {parser_name}: {e}")
         self.retry(exc=e)
     except Exception as e:
         logger.error(f"Ошибка при выполнении парсера {parser_name}: {e}")
@@ -145,9 +152,6 @@ def parse_some_data(self, parser_name, *args, **kwargs):
 def check_and_start_parsers(parser_name: str, is_first_run: bool = False):
     """
     Проверяет активные задачи для указанного парсера и запускает новую задачу, если она не работает.
-
-    :param parser_name: Имя класса парсера, который необходимо проверить и запустить.
-    :param is_first_run: Флаг первого запуска для удаления старых ключей метаданных.
     """
     logger.info(f"Запуск проверки активных задач парсера {parser_name}.")
 
@@ -161,7 +165,7 @@ def check_and_start_parsers(parser_name: str, is_first_run: bool = False):
     parser_tasks = []
     for worker, tasks in active_tasks.items():
         for task in tasks:
-            if task['name'] == 'services_app.tasks.parse_some_data' and task['args'][0] == parser_name:
+            if task['name'] == f'services_app.tasks.parse_some_data_{parser_name.lower()}' and task['args'][0] == parser_name:
                 parser_tasks.append(task)
 
     # Завершаем старые задачи, если их больше двух
@@ -175,6 +179,9 @@ def check_and_start_parsers(parser_name: str, is_first_run: bool = False):
     if not active_task_id or is_first_run:
         logger.info(f"Активная задача для парсера {parser_name} не найдена, запуск новой задачи через 30 секунд.")
         time.sleep(30)
-        parse_some_data.apply_async(args=(parser_name,), kwargs={'is_first_run': is_first_run})
+        if parser_name == 'FetchAkty':
+            parse_some_data_akty.apply_async(args=(parser_name,), kwargs={'is_first_run': is_first_run})
+        elif parser_name == 'FB':
+            parse_some_data_fb.apply_async(args=(parser_name,), kwargs={'is_first_run': is_first_run})
     else:
         logger.info(f"Активная задача {active_task_id.decode()} для парсера {parser_name} найдена, запуск новой задачи не требуется.")
