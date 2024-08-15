@@ -99,7 +99,7 @@ def _parse_some_data(self, parser_name, *args, **kwargs):
         # Удаляем `is_first_run` из kwargs, чтобы не передавать его в конструктор парсера
         kwargs.pop('is_first_run', None)
 
-        parser = parser_class()  # Если аргументы не нужны
+        parser = parser_class(*args, **kwargs)
 
         asyncio.run(parser.run())
         logger.info(f"Парсер {parser_name} с task_id {self.request.id} успешно завершен.")
