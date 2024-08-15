@@ -97,6 +97,9 @@ def _parse_some_data(self, parser_name, *args, **kwargs):
         if not parser_class:
             raise ValueError(f"Парсер с именем {parser_name} не найден")
 
+        # Удаляем `is_first_run` из kwargs, чтобы не передавать его в конструктор парсера
+        kwargs.pop('is_first_run', None)
+
         # Проверяем, нужны ли аргументы для конструктора
         if args or kwargs:
             parser = parser_class(*args, **kwargs)  # Если у парсера есть аргументы
