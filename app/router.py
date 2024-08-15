@@ -1,4 +1,5 @@
 import os
+import asyncio
 import aiofiles
 import subprocess
 import dotenv
@@ -130,7 +131,13 @@ async def update_token(new_token: str):
         dict: Статус обновления токена.
     """
     env_file_path = '/var/www/fastuser/data/www/api.parserchina.com/china_parser/.env'
-    service_name = 'api.parserchina.service'
+    services_name = [
+        'api.parserchina.service',
+        'celery_service_akty.service',
+        'celery_service_fb.service',
+        'celery_beat_parser_china.service',
+        'flower.service'
+    ]
 
     try:
         # Загружаем текущее содержимое файла .env
@@ -147,8 +154,10 @@ async def update_token(new_token: str):
                 else:
                     await env_file.write(f'{key}={value}\n')
 
-        # Перезапуск systemd-сервиса
-        subprocess.run(["/usr/bin/systemctl", "restart", service_name])
+        # Перезапуск systemd-сервисов
+        for service_name in services_name:
+            subprocess.run(["/usr/bin/systemctl", "restart", service_name])
+            await asyncio.sleep(3)
 
         return {"status": "Token updated and application is restarting"}
 
