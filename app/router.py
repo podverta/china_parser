@@ -10,7 +10,7 @@ from transfer_data.redis_client import RedisClient
 route = APIRouter()
 # Удаляем loop = asyncio.get_event_loop() так как оно не используется
 
-@router.post("/run_parser/")
+@route.post("/run_parser/")
 async def run_parser(request: ParserRequest):
     """
     Эндпоинт для запуска парсера.
