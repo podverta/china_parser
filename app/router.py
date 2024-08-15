@@ -119,7 +119,7 @@ async def get_game(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@route.post("/update-token/")
+@app.post("/update-token/")
 async def update_token(new_token: str):
     """
     Эндпоинт для обновления токена в файле .env и перезапуска приложения.
@@ -154,10 +154,11 @@ async def update_token(new_token: str):
                 else:
                     await env_file.write(f'{key}={value}\n')
 
-        # Перезапуск systemd-сервисов
-        for service_name in services_name:
-            subprocess.run(["/usr/bin/systemctl", "restart", service_name])
-            await asyncio.sleep(3)
+        # Формирование команды для перезапуска всех сервисов
+        restart_command = " && ".join([f"systemctl restart {service}" for service in services_name])
+
+        # Выполнение команды перезапуска
+        subprocess.run(restart_command, shell=True, check=True)
 
         return {"status": "Token updated and application is restarting"}
 
