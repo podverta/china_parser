@@ -3,7 +3,6 @@ from app.router import route
 from transfer_data.socketio_server import app as socket_app, origins
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
-from transfer_data.redis_client import RedisClient
 
 
 

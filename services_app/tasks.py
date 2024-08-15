@@ -178,7 +178,6 @@ def check_and_start_parsers(parser_name: str, is_first_run: bool = False):
     active_task_id = redis_client.get(f"active_parser_{parser_name}")
     if not active_task_id or is_first_run:
         logger.info(f"Активная задача для парсера {parser_name} не найдена, запуск новой задачи через 30 секунд.")
-        time.sleep(30)
         if parser_name == 'FetchAkty':
             parse_some_data_akty.apply_async(args=(parser_name,), kwargs={'is_first_run': is_first_run})
         elif parser_name == 'FB':

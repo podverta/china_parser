@@ -3,14 +3,14 @@ import aiofiles
 import subprocess
 import dotenv
 from fastapi import APIRouter, HTTPException
-from services_app.tasks import parse_some_data
+from services_app.tasks import parse_some_data_akty, parse_some_data_fb
 from app.schema import ParserRequest
 from transfer_data.redis_client import RedisClient
 
 route = APIRouter()
 # Удаляем loop = asyncio.get_event_loop() так как оно не используется
 
-@route.post("/run_parser/")
+@router.post("/run_parser/")
 async def run_parser(request: ParserRequest):
     """
     Эндпоинт для запуска парсера.
@@ -18,16 +18,19 @@ async def run_parser(request: ParserRequest):
     :param request: Данные для запуска парсера (имя класса парсера, аргументы и именованные аргументы)
     :return: Сообщение о статусе запуска парсера
     """
-    parsers_name = [
-        'FetchAkty',
-        'FB'
-    ]
+    parsers_map = {
+        'FetchAkty': parse_some_data_akty,
+        'FB': parse_some_data_fb
+    }
+
     try:
-        if request.parser_name not in parsers_name:
+        # Проверяем, существует ли парсер в словаре
+        if request.parser_name not in parsers_map:
             raise HTTPException(status_code=400, detail="Parser class not found")
 
-        # Запускаем задачу Celery
-        parse_some_data.delay(request.parser_name, *request.args, **request.kwargs)
+        # Вызываем соответствующую задачу Celery для указанного парсера
+        celery_task = parsers_map[request.parser_name]
+        celery_task.delay(request.parser_name, *request.args, **request.kwargs)
 
         return {"status": "Parser is running", "parser": request.parser_name}
     except HTTPException as e:
@@ -36,7 +39,6 @@ async def run_parser(request: ParserRequest):
     except Exception as e:
         # Важно отлавливать все возможные ошибки и возвращать понятный ответ
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
-
 
 @route.get("/logs/akty")
 async def get_akty_logs():
