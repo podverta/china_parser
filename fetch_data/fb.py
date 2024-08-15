@@ -55,13 +55,9 @@ class OddsFetcher:
         :param headless: Запуск браузера в headless режиме.
         """
         self.url = URL
-        self.loop = asyncio.new_event_loop()
         self.sio = socketio.AsyncSimpleClient()
-        asyncio.set_event_loop(self.loop)
         self.redis_client = None
-        self.driver = self.loop.run_until_complete(
-            self.get_driver(headless=HEADLESS)
-        )
+        self.driver_fb = self.get_driver(headless=HEADLESS)
         self.time_game_translate = {
             '第一节': 'I',
             '第二节': 'II',
@@ -74,15 +70,17 @@ class OddsFetcher:
         self.previous_data = {}
         self.translate_cash = load_translate_cash()
 
-    async def get_driver(
-            self,
+    @staticmethod
+    def get_driver(
             headless: bool = False,
-            ) -> None:
+            ) -> uc.Chrome:
         """
         Инициализирует и возвращает WebDriver для браузера Chrome.
         :param headless: Запуск браузера в headless режиме.
         """
-        return uc.Chrome(options=uc.ChromeOptions(), headless=headless)
+        options = uc.ChromeOptions()
+        driver = uc.Chrome(options=options, headless=headless)
+        return driver
 
     async def get_url(self):
         """
@@ -94,70 +92,55 @@ class OddsFetcher:
 
         for attempt in range(max_retries):
             try:
-                # Очистка кеша и cookies
-                self.driver.delete_all_cookies()
-
                 # Перезагрузка страницы
-                self.driver.get(self.url)
+                self.driver_fb.get(self.url)
+                await asyncio.sleep(5)  # Ожидание перед проверкой
 
-                # Явное ожидание появления элемента загрузки
-                loading_element = WebDriverWait(self.driver, wait_time).until(
-                    EC.presence_of_element_located((
-                        By.CSS_SELECTOR,
-                        'div.q-loading.fullscreen.column.flex-center.z-max.text-black'
-                    ))
-                )
-
-                if loading_element and loading_element.is_displayed():
-                    # Ожидание исчезновения элемента загрузки
-                    try:
-                        WebDriverWait(self.driver, wait_time).until_not(
-                            EC.visibility_of(loading_element)
-                        )
-
-                        # Логируем успешную загрузку
-                        await self.send_to_logs(
-                            f"Элемент загрузки исчез, страница загружена {self.url} "
-                            f"(попытка {attempt + 1})"
-                        )
-                        break  # Элемент загрузки исчез, продолжаем выполнение
-
-                    except TimeoutException:
-                        # Элемент загрузки не исчез
-                        await self.send_to_logs(
-                            f"Элемент загрузки не исчез на странице {self.url}, "
-                            f"перезагрузка страницы... (попытка {attempt + 1})"
-                        )
-
-                        # Явное обновление страницы
-                        self.driver.refresh()
-                        await asyncio.sleep(
-                            5)  # Ожидание перед повторной попыткой
-                        continue  # Перезагрузка страницы и повторная попытка
-
-                else:
-                    # Если элемент загрузки не найден или уже не виден
-                    await self.send_to_logs(
-                        f"Элемент загрузки не найден или не виден. "
-                        f"Продолжаем выполнение (попытка {attempt + 1})"
+                # Проверка наличия элемента загрузки
+                try:
+                    loading_element = WebDriverWait(self.driver_fb,
+                                                    wait_time).until(
+                        EC.presence_of_element_located((
+                            By.CSS_SELECTOR,
+                            'div.q-loading.fullscreen.column.flex-center.z-max.text-black'
+                        ))
                     )
+                    await self.send_to_logs(
+                        f"Элемент загрузки найден на странице {self.url} (попытка {attempt + 1})")
+                except TimeoutException:
+                    # Элемент загрузки не найден, продолжаем выполнение
+                    await self.send_to_logs(
+                        f"Элемент загрузки не найден на странице {self.url}. Продолжаем выполнение (попытка {attempt + 1})")
                     break
+
+                # Ожидание исчезновения элемента загрузки
+                try:
+                    WebDriverWait(self.driver_fb, wait_time).until_not(
+                        EC.visibility_of(loading_element)
+                    )
+                    await self.send_to_logs(
+                        f"Элемент загрузки исчез, страница загружена {self.url} (попытка {attempt + 1})")
+                    break  # Элемент загрузки исчез, продолжаем выполнение
+
+                except TimeoutException:
+                    # Элемент загрузки не исчез
+                    await self.send_to_logs(
+                        f"Элемент загрузки не исчез на странице {self.url}, перезагрузка страницы... (попытка {attempt + 1})")
+                    self.driver_fb.refresh()
+                    continue  # Повторная попытка загрузки страницы
 
             except Exception as e:
                 await self.send_to_logs(
-                    f"Произошла ошибка: {e}. Попытка {attempt + 1} из {max_retries}."
-                )
+                    f"Произошла ошибка: {e}. Попытка {attempt + 1} из {max_retries}.")
                 if attempt + 1 >= max_retries:
                     raise e
                 await asyncio.sleep(5)  # Ожидание перед повторной попыткой
 
         else:
             await self.send_to_logs(
-                f"Не удалось загрузить страницу без элемента загрузки после {max_retries} попыток"
-            )
+                f"Не удалось загрузить страницу без элемента загрузки после {max_retries} попыток")
             raise Exception(
-                "Не удалось загрузить страницу без элемента загрузки."
-            )
+                "Не удалось загрузить страницу без элемента загрузки.")
 
     async def save_games(self, data: dict, liga_name: str):
         """
@@ -289,7 +272,7 @@ class OddsFetcher:
         если элемент не был найден в течение заданного времени.
         """
         try:
-            element = WebDriverWait(self.driver, timeout).until(
+            element = WebDriverWait(self.driver_fb, timeout).until(
                 EC.presence_of_element_located((by, value))
             )
             return element
@@ -323,7 +306,7 @@ class OddsFetcher:
             'Остановка парсера, не найден <div> с играми после 5 попыток.'
         )
         await self.sio.disconnect()
-        self.driver.quit()
+        self.driver_fb.quit()
 
     async def get_translate(
             self,
@@ -406,7 +389,7 @@ class OddsFetcher:
         previous_leagues_data = {"fb.com": {}}
 
         try:
-            html = self.driver.page_source
+            html = self.driver_fb.page_source
             soup = BeautifulSoup(html, 'html.parser')
             match_groups = soup.select('.home-match-list-box .group-matches')
 
@@ -556,8 +539,8 @@ class OddsFetcher:
             logger.error(f"Error in collect_odds_data: {str(e)}")
 
     async def close(self):
-        if self.driver:
-            self.driver.quit()
+        if self.driver_fb:
+            self.driver_fb.quit()
             await self.send_to_logs("Драйвер был закрыт принудительно")
         if self.redis_client:
             await self.redis_client.close()
@@ -573,22 +556,23 @@ class OddsFetcher:
             *args: Позиционные аргументы.
             **kwargs: Именованные аргументы.
         """
+        leagues = kwargs.get('leagues', LEAGUES)
         attempt = 0
         max_retries = 5
 
         while attempt < max_retries:
             try:
-                self.redis_client = RedisClient()
-                await self.redis_client.connect()
+                if not self.debug:
+                    self.redis_client = RedisClient()
+                    await self.redis_client.connect()
                 await self.init_async_components()
-                leagues = kwargs.get('leagues', LEAGUES)
                 await self.get_url()
                 await self.main_page()
                 while True:
                     await self.collect_odds_data(leagues)
                     await asyncio.sleep(1)  # Пауза между циклами сбора данных
             except Exception as e:
-                self.driver.save_screenshot(
+                self.driver_fb.save_screenshot(
                     f'screenshot_fb_{attempt}.png'
                 )
                 await self.send_to_logs(
@@ -601,7 +585,7 @@ class OddsFetcher:
                         "Достигнуто максимальное количество попыток. Остановка.")
                     break
             finally:
-                self.driver.quit()
+                self.driver_fb.quit()
                 await self.redis_client.close()
 
 if __name__ == "__main__":

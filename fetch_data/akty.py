@@ -6,6 +6,7 @@ import socketio
 import hashlib
 import traceback
 import json
+import time
 import undetected_chromedriver as uc
 from typing import List, Dict, Any
 from translatepy import Translator
@@ -61,13 +62,9 @@ class FetchAkty:
         """
         self.url = url
         self.proxy = proxy
-        self.loop = asyncio.new_event_loop()
         self.sio = socketio.AsyncSimpleClient()
         self.redis_client = None
-        asyncio.set_event_loop(self.loop)
-        self.driver = self.loop.run_until_complete(
-            self.get_driver(headless=HEADLESS)
-        )
+        self.driver = self.get_driver(headless=HEADLESS)
         self.time_game_translate = {
             '第一节': 'I',
             '第二节': 'II',
@@ -178,16 +175,17 @@ class FetchAkty:
             print(f"Error initializing async components: {e}")
             raise
 
-    async def get_driver(
+    def get_driver(
             self,
             headless: bool = False,
-            retries: int = 3
+            retries: int = 3,
     ) -> uc.Chrome:
         """
         Инициализирует и возвращает WebDriver для браузера Chrome.
 
         :param headless: Запуск браузера в headless режиме.
         :param retries: Количество попыток запуска WebDriver в случае ошибки.
+        :param user_data_dir: Путь к пользовательскому профилю Chrome.
         :return: WebDriver для браузера Chrome.
         """
         options = uc.ChromeOptions()
@@ -206,7 +204,7 @@ class FetchAkty:
                     f"(попытка {attempt} из {retries}): {e}")
                 if attempt >= retries:
                     raise e
-                await asyncio.sleep(5)  # Ожидание перед повторной попыткой
+                time.sleep(5)
 
     async def get_url(
             self,
