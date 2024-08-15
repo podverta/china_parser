@@ -148,7 +148,7 @@ async def update_token(new_token: str):
                     await env_file.write(f'{key}={value}\n')
 
         # Перезапуск systemd-сервиса
-        subprocess.run(["systemctl", "restart", service_name])
+        subprocess.run(["/usr/bin/systemctl", "restart", service_name])
 
         return {"status": "Token updated and application is restarting"}
 

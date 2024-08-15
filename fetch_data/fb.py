@@ -69,7 +69,7 @@ class OddsFetcher:
         self.translator = Translator()
         self.previous_data = {}
         self.translate_cash = load_translate_cash()
-
+        self.ended_games = {"fb.com": {}}
     @staticmethod
     def get_driver(
             headless: bool = False,
@@ -82,7 +82,18 @@ class OddsFetcher:
         driver = uc.Chrome(options=options, headless=headless)
         return driver
 
-    async def get_url(self):
+    async def get_url(
+            self,
+            url: str
+    ):
+        """
+        Загружает основную страницу по заданному URL.
+
+        :param url: URL страницы для загрузки.
+        """
+        self.driver_fb.get(url)
+
+    async def get_page(self):
         """
         Загружает основную страницу по заданному URL с проверкой на элемент загрузки.
         Если элемент загрузки виден слишком долго, перезагружает страницу.
@@ -93,9 +104,8 @@ class OddsFetcher:
         for attempt in range(max_retries):
             try:
                 # Перезагрузка страницы
-                self.driver_fb.get(self.url)
+                await self.get_url(self.url)
                 await asyncio.sleep(5)  # Ожидание перед проверкой
-
                 # Проверка наличия элемента загрузки
                 try:
                     loading_element = WebDriverWait(self.driver_fb,
@@ -285,26 +295,51 @@ class OddsFetcher:
         max_attempts = 6
         attempt = 0
 
-        basketball_button = await self.wait_for_element(
-            By.CSS_SELECTOR,
-            '.ui-carousel-item.sport-type-item img[src="sport-svg/sport_id_3.svg"]',
-            timeout=30
-        )
-        if basketball_button:
-            basketball_button.click()
-            await self.send_to_logs('Успешный переход в баскетбольную лигу')
-            return
-        logger.info(
-            f"Внимание! Отсутствие контента на странице,"
-            f" Попытка {attempt + 1} из {max_attempts} получить контент.")
-        attempt += 1
-        await asyncio.sleep(
-            10)
-        if attempt < max_attempts:
-            await self.main_page()
+        while attempt < max_attempts:
+            try:
+                # Ожидаем исчезновения элемента загрузки
+                loading_element = await self.wait_for_element(
+                    By.CSS_SELECTOR,
+                    'div.q-loading.fullscreen.column.flex-center.z-max.text-black',
+                    timeout=10
+                )
+                if loading_element:
+                    await self.send_to_logs(
+                        f"Элемент загрузки найден на странице (попытка {attempt + 1}). Ожидание его исчезновения..."
+                    )
+                    await asyncio.sleep(
+                        5)  # Ждем некоторое время перед повторной попыткой
+                    attempt += 1
+                    continue
+
+                # Ищем и кликаем на кнопку баскетбола
+                basketball_button = await self.wait_for_element(
+                    By.CSS_SELECTOR,
+                    '.ui-carousel-item.sport-type-item img[src="sport-svg/sport_id_3.svg"]',
+                    timeout=30
+                )
+                if basketball_button:
+                    basketball_button.click()
+                    await self.send_to_logs(
+                        'Успешный переход в баскетбольную лигу')
+                    return
+
+                # Если кнопка не найдена, перезагружаем страницу
+                logger.info(
+                    f"Внимание! Отсутствие контента на странице, попытка {attempt + 1} из {max_attempts} получить контент.")
+                attempt += 1
+                self.driver_fb.refresh()
+                await asyncio.sleep(10)
+
+            except Exception as e:
+                await self.send_to_logs(
+                    f"Произошла ошибка: {str(e)}. Попытка {attempt + 1} из {max_attempts}.")
+                attempt += 1
+                await asyncio.sleep(5)
+
+        # Если все попытки не увенчались успехом, отключаемся и закрываем браузер
         await self.send_to_logs(
-            'Остановка парсера, не найден <div> с играми после 5 попыток.'
-        )
+            'Остановка парсера, не удалось перейти в баскетбольную лигу после 5 попыток.')
         await self.sio.disconnect()
         self.driver_fb.quit()
 
@@ -354,7 +389,6 @@ class OddsFetcher:
                 f"Ошибка перевода текста: {short_name}, ошибка: {str(e)}")
             return short_name
 
-
     async def check_changed_dict(
             self,
             existing_list: List[Dict[str, Any]],
@@ -370,14 +404,34 @@ class OddsFetcher:
         :return: True, если данные изменились и были сохранены, иначе False.
         """
         new_dict = copy.deepcopy(game_info)
+        opponent_0 = game_info['opponent_0']
+        opponent_1 = game_info['opponent_1']
+
+        # Проверка существования игры в списке существующих
         for existing_dict in existing_list:
-            if (existing_dict['opponent_0'] == new_dict['opponent_0'] and
-                    existing_dict['opponent_1'] == new_dict['opponent_1']):
+            if (existing_dict['opponent_0'] == opponent_0 and
+                    existing_dict['opponent_1'] == opponent_1):
+                # Если данные о коэффициентах изменились
                 if existing_dict['rate'] != new_dict['rate']:
                     await self.save_games(new_dict, liga_name)
                     return True
                 return False
-        return True
+
+        if (opponent_0, opponent_1) not in self.ended_games["fb.com"]:
+            return True
+        else:
+            self.ended_games["fb.com"][(opponent_0, opponent_1)][
+                "is_end_game"] += 1
+            if self.ended_games["fb.com"][(opponent_0, opponent_1)][
+                "is_end_game"] >= 60:
+                ended_game = self.ended_games["fb.com"].pop(
+                    (opponent_0, opponent_1))
+                ended_game["game_info"]["is_end_game"] = True
+                existing_list.append(ended_game[
+                                         "game_info"])
+                return True
+
+        return False
 
     async def collect_odds_data(self, target_leagues: dict):
         """
@@ -387,7 +441,7 @@ class OddsFetcher:
         """
         active_matches = {"fb.com": {}}
         previous_leagues_data = {"fb.com": {}}
-
+        games_not_found = copy.deepcopy(self.previous_data)
         try:
             html = self.driver_fb.page_source
             soup = BeautifulSoup(html, 'html.parser')
@@ -535,6 +589,7 @@ class OddsFetcher:
             # Отправляем данные, только если они изменились
             if any(active_matches["fb.com"].values()):
                 await self.send_data(active_matches)
+            print("END GAME:", self.ended_games["fb.com"]) if self.ended_games["fb.com"] else ...
         except Exception as e:
             logger.error(f"Error in collect_odds_data: {str(e)}")
 
@@ -566,7 +621,7 @@ class OddsFetcher:
                     self.redis_client = RedisClient()
                     await self.redis_client.connect()
                 await self.init_async_components()
-                await self.get_url()
+                await self.get_page()
                 await self.main_page()
                 while True:
                     await self.collect_odds_data(leagues)
