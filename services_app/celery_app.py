@@ -36,6 +36,12 @@ celery_app.conf.beat_schedule = {
 }
 celery_app.conf.timezone = 'UTC'
 
+celery_app.conf.task_routes = {
+    'services_app.tasks.check_and_start_parsers_akty': {'queue': 'akty_queue'},
+    'services_app.tasks.check_and_start_parsers_fb': {'queue': 'fb_queue'},
+    'services_app.tasks.parse_some_data_akty': {'queue': 'akty_queue'},
+    'services_app.tasks.parse_some_data_fb': {'queue': 'fb_queue'},
+}
 
 # Инициализация Redis-клиента
 redis_url = os.getenv('REDIS_URL')
