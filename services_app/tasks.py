@@ -78,7 +78,6 @@ def _schedule_stop_previous_instance(self, parser_name, previous_task_id):
     """
     try:
         logger.info(f"Запланирована остановка предыдущей задачи {previous_task_id} для парсера {parser_name} через {PARSER_TIMEOUT} секунд.")
-        time.sleep(PARSER_TIMEOUT)
         stop_task(previous_task_id)
         clear_task_metadata(previous_task_id)
         logger.info(f"Предыдущая задача {previous_task_id} для парсера {parser_name} остановлена.")
@@ -100,11 +99,7 @@ def _parse_some_data(self, parser_name, *args, **kwargs):
         # Удаляем `is_first_run` из kwargs, чтобы не передавать его в конструктор парсера
         kwargs.pop('is_first_run', None)
 
-        # Проверяем, нужны ли аргументы для конструктора
-        if args or kwargs:
-            parser = parser_class(*args, **kwargs)  # Если у парсера есть аргументы
-        else:
-            parser = parser_class()  # Если аргументы не нужны
+        parser = parser_class()  # Если аргументы не нужны
 
         asyncio.run(parser.run())
         logger.info(f"Парсер {parser_name} с task_id {self.request.id} успешно завершен.")

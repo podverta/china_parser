@@ -754,7 +754,7 @@ class FetchAkty:
             await self.redis_client.close()
 
     def __del__(self):
-        asyncio.run(fetch_akty.close())
+        asyncio.run(self.close())
 
     async def run(self, *args, **kwargs):
         """
