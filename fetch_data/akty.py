@@ -198,7 +198,7 @@ class FetchAkty:
         attempt = 0
         while attempt < retries:
             try:
-                driver = uc.Chrome(options=options, headless=headless)
+                driver = uc.Chrome(options=options, headless=False)
                 return driver
             except WebDriverException as e:
                 attempt += 1

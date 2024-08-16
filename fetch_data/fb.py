@@ -82,7 +82,7 @@ class OddsFetcher:
         Инициализирует и возвращает WebDriver для браузера Chrome.
         :param headless: Запуск браузера в headless режиме.
         """
-        return uc.Chrome(options=uc.ChromeOptions(), headless=headless)
+        return uc.Chrome(options=uc.ChromeOptions(), headless=False)
 
     async def get_url(
             self,
