@@ -43,7 +43,9 @@ logger = setup_logger('fb', 'fb_debug.log')
 
 class OddsFetcher:
     def __init__(
-            self
+            self,
+            url=URL,
+            headless=HEADLESS,
     ):
         """
         Инициализация класса OddsFetcher.
@@ -56,7 +58,7 @@ class OddsFetcher:
         self.url = URL
         self.sio = socketio.AsyncSimpleClient()
         self.redis_client = None
-        self.driver_fb = self.get_driver(headless=HEADLESS)
+        self.driver_fb = self.get_driver(headless=headless)
         self.time_game_translate = {
             '第一节': 'I',
             '第二节': 'II',
@@ -426,7 +428,7 @@ class OddsFetcher:
                 ended_game = self.ended_games["fb.com"].pop(
                     (opponent_0, opponent_1))
                 ended_game["game_info"]["is_end_game"] = True
-                existing_list.append(ended_game[
+                game_info.append(ended_game[
                                          "game_info"])
                 return True
 

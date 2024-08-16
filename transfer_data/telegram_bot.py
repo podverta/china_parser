@@ -39,10 +39,11 @@ async def send_message_to_telegram(content: dict) -> None:
 
     :param content: Словарь с данными, которые будут отправлены в виде таблицы
     """
-    total_bet_0 = float(content['total_bet_0'])
-    total_bet_1 = float(content['total_bet_1'])
-    handicap_bet_0 = float(content['handicap_bet_0'])
-    handicap_bet_1 = float(content['handicap_bet_1'])
+
+    total_bet_0 = float(content.get('total_bet_0', '0'))
+    total_bet_1 = float(content.get('total_bet_1', '0'))
+    handicap_bet_0 = float(content.get('handicap_bet_0', '0'))
+    handicap_bet_1 = float(content.get('handicap_bet_1', '0'))
 
     table = (
         f"{content['opponent_0']} vs {content['opponent_1']} | {content['site']} - {content['liga']}\n"
