@@ -105,7 +105,7 @@ class OddsFetcher:
         for attempt in range(max_retries):
             try:
                 # Перезагрузка страницы
-                await self.get_url(self.url)
+                await self.get_url()
                 await asyncio.sleep(5)  # Ожидание перед проверкой
                 # Проверка наличия элемента загрузки
                 try:
