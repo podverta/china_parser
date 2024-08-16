@@ -25,13 +25,19 @@ logger = setup_logger('celery', 'celery.log')
 
 # Настройка расписания задач
 celery_app.conf.beat_schedule = {
+    'run_fetch_akty': {
+        'task': 'services_app.tasks.parse_some_data',
+        'schedule': crontab(minute=4, hour='*/3'),
+        'args': ('FetchAkty',),
+    },
+    'run_fb': {
+        'task': 'services_app.tasks.parse_some_data',
+        'schedule': crontab(minute=5, hour='*/7'),
+        'args': ('FB',),
+    },
     'check_and_start_parsers': {
         'task': 'services_app.tasks.check_and_start_parsers',
-        'schedule': crontab(minute='*/5'),
-    },
-    'restart_all_parsers': {
-        'task': 'services_app.tasks.restart_all_parsers',
-        'schedule': crontab(hour='*/8'),  # Каждые 8 часов
+        'schedule': crontab(minute=0, hour='*'),  # Каждый час
     },
 }
 celery_app.conf.timezone = 'UTC'
