@@ -77,23 +77,22 @@ class OddsFetcher:
     async def get_driver(
             self,
             headless: bool = False,
-    ) -> None:
+    ) -> uc.Chrome:
         """
         Инициализирует и возвращает WebDriver для браузера Chrome.
         :param headless: Запуск браузера в headless режиме.
         """
-        return uc.Chrome(options=uc.ChromeOptions(), headless=False)
+        return uc.Chrome(options=uc.ChromeOptions(), headless=headless)
 
     async def get_url(
-            self,
-            url: str
+            self
     ):
         """
         Загружает основную страницу по заданному URL.
 
         :param url: URL страницы для загрузки.
         """
-        self.driver_fb.get(url)
+        self.driver_fb.get(self.url)
 
     async def get_page(self):
         """
