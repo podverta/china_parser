@@ -64,7 +64,7 @@ class FetchAkty:
         self.proxy = proxy
         self.sio = socketio.AsyncSimpleClient()
         self.redis_client = None
-        self.driver = self.get_driver(headless=HEADLESS)
+        self.driver = self.get_driver()
         self.time_game_translate = {
             '第一节': 'I',
             '第二节': 'II',
@@ -177,7 +177,6 @@ class FetchAkty:
 
     def get_driver(
             self,
-            headless: bool = False,
             retries: int = 3,
     ) -> uc.Chrome:
         """
@@ -195,7 +194,7 @@ class FetchAkty:
         attempt = 0
         while attempt < retries:
             try:
-                driver = uc.Chrome(options=options, headless=headless)
+                driver = uc.Chrome(options=options, headless=HEADLESS)
                 return driver
             except WebDriverException as e:
                 attempt += 1

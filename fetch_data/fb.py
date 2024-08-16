@@ -44,8 +44,6 @@ logger = setup_logger('fb', 'fb_debug.log')
 class OddsFetcher:
     def __init__(
             self,
-            url=URL,
-            headless=HEADLESS,
     ):
         """
         Инициализация класса OddsFetcher.
@@ -58,7 +56,7 @@ class OddsFetcher:
         self.url = URL
         self.sio = socketio.AsyncSimpleClient()
         self.redis_client = None
-        self.driver_fb = self.get_driver(headless=headless)
+        self.driver_fb = self.get_driver()
         self.time_game_translate = {
             '第一节': 'I',
             '第二节': 'II',
@@ -74,14 +72,13 @@ class OddsFetcher:
 
     @staticmethod
     def get_driver(
-            headless: bool = False,
             ) -> uc.Chrome:
         """
         Инициализирует и возвращает WebDriver для браузера Chrome.
         :param headless: Запуск браузера в headless режиме.
         """
         options = uc.ChromeOptions()
-        driver = uc.Chrome(options=options, headless=headless)
+        driver = uc.Chrome(options=options, headless=HEADLESS)
         return driver
 
     async def get_url(
