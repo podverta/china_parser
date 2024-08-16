@@ -481,6 +481,7 @@ class OddsFetcher:
                                 'handicap_bet_1': '',
                             },
                             'server_time': '',
+                            'is_end_game': False
                         }
 
                         process_time_elements = match.select('.time')
@@ -596,7 +597,6 @@ class OddsFetcher:
                         game_key = await self._generate_game_key(site, league, game)
                         if game_key in self.ended_games:
                             self.ended_games[game_key]['counter'] += 1
-                            print("ПРОПАЛА ИГРА", game_key)
                         else:
                             self.ended_games[game_key] = {'game': game,
                                                           'counter': 1}
@@ -613,13 +613,13 @@ class OddsFetcher:
         # Обработка завершенных игр с учетом счетчика
         for game_key, game_info in list(self.ended_games.items()):
             if game_info[
-                'counter'] >= 200:  # Если игра не появилась за 200 проверок
+                'counter'] >= 1000:
                 game = game_info['game']
                 game['is_end_game'] = True
                 league = game.get('league_name')  # Если нужно получить имя лиги
                 if league:
                     active_matches["fb.com"].setdefault(league, []).append(game)
-                print(f"Игра окончательно завершена: {game}")
+                logger.error(f"Игра окончательно завершена: {game}")
                 del self.ended_games[game_key]  # Удаляем из ended_games
 
     async def _generate_game_key(self, site: str, league: str,
