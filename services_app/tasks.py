@@ -139,46 +139,42 @@ def parse_some_data(self, parser_name, *args, **kwargs):
 @celery_app.task
 def check_and_start_parsers(is_first_run: bool = False):
     """
-    Проверяет активные задачи парсеров и запускает их, если они не работают.
+    Проверяет активные задачи парсеров и запускает их в нужном порядке.
     """
     logger.info("Запуск проверки активных задач парсеров.")
 
     if is_first_run:
-        logger.info(
-            "Первый запуск, удаление всех celery-task-meta ключей из Redis.")
+        logger.info("Первый запуск, удаление всех celery-task-meta ключей из Redis.")
         delete_celery_task_meta_keys()
 
     inspect = current_app.control.inspect()
     active_tasks = inspect.active()  # Получаем активные задачи
 
-    for parser_name in parsers.keys():
-        parser_tasks = []
+    # Сначала проверяем и запускаем FB
+    fb_tasks = []
+    for worker, tasks in active_tasks.items():
+        for task in tasks:
+            if task['name'] == 'services_app.tasks.parse_some_data' and task['args'][0] == 'FB':
+                fb_tasks.append(task)
 
-        for worker, tasks in active_tasks.items():
-            for task in tasks:
-                if task['name'] == 'services_app.tasks.parse_some_data' and \
-                        task['args'][0] == parser_name:
-                    parser_tasks.append(task)
+    if len(fb_tasks) > 0:
+        logger.info("Активная задача FB уже работает.")
+    else:
+        logger.info("Запуск новой задачи для FB через 30 секунд.")
+        time.sleep(30)
+        parse_some_data.apply_async(args=('FB',), kwargs={'is_first_run': is_first_run})
 
-        # Завершаем старые задачи, если их больше двух
-        if len(parser_tasks) > 2:
-            parser_tasks.sort(
-                key=lambda x: x['time_start'])  # Сортируем по времени старта
-            for task in parser_tasks[:-2]:
-                stop_task(task['id'])
-                logger.info(
-                    f"Старая задача {task['id']} для парсера"
-                    f" {parser_name} была остановлена.")
+    # Проверяем и запускаем FetchAkty только после FB
+    fetch_akty_tasks = []
+    for worker, tasks in active_tasks.items():
+        for task in tasks:
+            if task['name'] == 'services_app.tasks.parse_some_data' and task['args'][0] == 'FetchAkty':
+                fetch_akty_tasks.append(task)
 
-        active_task_id = redis_client.get(f"active_parser_{parser_name}")
-        if not active_task_id or is_first_run:
-            logger.info(
-                f"Активная задача для парсера {parser_name} не найдена, "
-                f"запуск новой задачи через 30 секунд.")
-            time.sleep(90)
-            parse_some_data.apply_async(args=(parser_name,),
-                                        kwargs={'is_first_run': is_first_run})
-        else:
-            logger.info(
-                f"Активная задача {active_task_id.decode()} для парсера "
-                f"{parser_name} найдена, запуск новой задачи не требуется.")
+    if len(fetch_akty_tasks) > 0:
+        logger.info("Активная задача FetchAkty уже работает.")
+    else:
+        # Ждем 1,5 минуты перед запуском FetchAkty
+        logger.info("Запуск новой задачи для FetchAkty через 1,5 минуты после запуска FB.")
+        time.sleep(90)
+        parse_some_data.apply_async(args=('FetchAkty',), kwargs={'is_first_run': is_first_run})
