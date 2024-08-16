@@ -71,6 +71,7 @@ class OddsFetcher:
         self.previous_data = {}
         self.translate_cash = load_translate_cash()
         self.ended_games = {"fb.com": {}}
+
     @staticmethod
     def get_driver(
             headless: bool = False,
