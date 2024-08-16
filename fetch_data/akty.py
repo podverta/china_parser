@@ -52,9 +52,7 @@ HEADLESS = True
 
 class FetchAkty:
     def __init__(
-            self,
-            url=URL,
-            proxy=PROXY
+            self
     ):
         """
         Инициализация класса FetchAkty. Устанавливает URL
