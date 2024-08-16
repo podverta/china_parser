@@ -58,7 +58,7 @@ class OddsFetcher:
         self.redis_client = None
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-        self.driver = self.loop.run_until_complete(
+        self.driver_fb = self.loop.run_until_complete(
             self.get_driver(headless=HEADLESS)
         )
         self.time_game_translate = {
