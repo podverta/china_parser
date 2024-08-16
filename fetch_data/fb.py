@@ -56,7 +56,11 @@ class OddsFetcher:
         self.url = URL
         self.sio = socketio.AsyncSimpleClient()
         self.redis_client = None
-        self.driver_fb = self.get_driver()
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+        self.driver = self.loop.run_until_complete(
+            self.get_driver(headless=HEADLESS)
+        )
         self.time_game_translate = {
             '第一节': 'I',
             '第二节': 'II',
@@ -70,16 +74,15 @@ class OddsFetcher:
         self.translate_cash = load_translate_cash()
         self.ended_games = {"fb.com": {}}
 
-    @staticmethod
-    def get_driver(
-            ) -> uc.Chrome:
+    async def get_driver(
+            self,
+            headless: bool = False,
+    ) -> None:
         """
         Инициализирует и возвращает WebDriver для браузера Chrome.
         :param headless: Запуск браузера в headless режиме.
         """
-        options = uc.ChromeOptions()
-        driver = uc.Chrome(options=options, headless=HEADLESS)
-        return driver
+        return uc.Chrome(options=uc.ChromeOptions(), headless=headless)
 
     async def get_url(
             self,

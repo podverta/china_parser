@@ -64,7 +64,11 @@ class FetchAkty:
         self.proxy = proxy
         self.sio = socketio.AsyncSimpleClient()
         self.redis_client = None
-        self.driver = self.get_driver()
+        self.loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.loop)
+        self.driver = self.loop.run_until_complete(
+            self.get_driver(headless=HEADLESS)
+        )
         self.time_game_translate = {
             '第一节': 'I',
             '第二节': 'II',
@@ -175,16 +179,16 @@ class FetchAkty:
             print(f"Error initializing async components: {e}")
             raise
 
-    def get_driver(
+    async def get_driver(
             self,
-            retries: int = 3,
+            headless: bool = False,
+            retries: int = 3
     ) -> uc.Chrome:
         """
         Инициализирует и возвращает WebDriver для браузера Chrome.
 
         :param headless: Запуск браузера в headless режиме.
         :param retries: Количество попыток запуска WebDriver в случае ошибки.
-        :param user_data_dir: Путь к пользовательскому профилю Chrome.
         :return: WebDriver для браузера Chrome.
         """
         options = uc.ChromeOptions()
@@ -194,7 +198,7 @@ class FetchAkty:
         attempt = 0
         while attempt < retries:
             try:
-                driver = uc.Chrome(options=options, headless=HEADLESS)
+                driver = uc.Chrome(options=options, headless=headless)
                 return driver
             except WebDriverException as e:
                 attempt += 1
@@ -203,7 +207,7 @@ class FetchAkty:
                     f"(попытка {attempt} из {retries}): {e}")
                 if attempt >= retries:
                     raise e
-                time.sleep(5)
+                await asyncio.sleep(5)  # Ожидание перед повторной попыткой
 
     async def get_url(
             self,
