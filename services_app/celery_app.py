@@ -25,35 +25,23 @@ logger = setup_logger('celery', 'celery.log')
 
 # Настройка расписания задач
 celery_app.conf.beat_schedule = {
-    'check_and_start_parsers_akty': {
-        'task': 'services_app.tasks.check_and_start_parsers_akty',
-        'schedule': crontab(minute=5, hour='*'),
-    },
-    'check_and_start_parsers_fb': {
-        'task': 'services_app.tasks.check_and_start_parsers_fb',
-        'schedule': crontab(minute=5),
-    },
     'run_fetch_akty': {
-        'task': 'services_app.tasks.parse_some_data_akty',
-         'schedule': crontab(minute=4, hour='*/3'),
+        'task': 'services_app.tasks.parse_some_data',
+        'schedule': crontab(minute=4, hour='*/3'),
+        'args': ('FetchAkty',),
     },
     'run_fb': {
-        'task': 'services_app.tasks.parse_some_data_fb',
-        'schedule': crontab(minute=21, hour='*/1'),
+        'task': 'services_app.tasks.parse_some_data',
+        'schedule': crontab(minute=11, hour='*/1'),
+        'args': ('FB',),
+    },
+    'check_and_start_parsers': {
+        'task': 'services_app.tasks.check_and_start_parsers',
+        'schedule': crontab(minute=0, hour='*'),  # Каждый час
     },
 }
 celery_app.conf.timezone = 'UTC'
 
-celery_app.conf.task_routes = {
-    'services_app.tasks.check_and_start_parsers_akty': {'queue': 'akty_queue'},
-    'services_app.tasks.check_and_start_parsers_fb': {'queue': 'fb_queue'},
-    'services_app.tasks.parse_some_data_akty': {'queue': 'akty_queue'},
-    'services_app.tasks.parse_some_data_fb': {'queue': 'fb_queue'},
-    'services_app.tasks.schedule_stop_previous_instance_akty': {
-        'queue': 'akty_queue'},
-    'services_app.tasks.schedule_stop_previous_instance_fb': {
-        'queue': 'fb_queue'},
-}
 
 # Инициализация Redis-клиента
 redis_url = os.getenv('REDIS_URL')
