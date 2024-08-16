@@ -72,7 +72,7 @@ class OddsFetcher:
         self.translator = Translator()
         self.previous_data = {}
         self.translate_cash = load_translate_cash()
-        self.ended_games = {"fb.com": {}}
+        self.ended_games = {}
 
     async def get_driver(
             self,
@@ -418,21 +418,6 @@ class OddsFetcher:
                     await self.save_games(new_dict, liga_name)
                     return True
                 return False
-
-        if (opponent_0, opponent_1) not in self.ended_games["fb.com"]:
-            return True
-        else:
-            self.ended_games["fb.com"][(opponent_0, opponent_1)][
-                "is_end_game"] += 1
-            if self.ended_games["fb.com"][(opponent_0, opponent_1)][
-                "is_end_game"] >= 60:
-                ended_game = self.ended_games["fb.com"].pop(
-                    (opponent_0, opponent_1))
-                ended_game["game_info"]["is_end_game"] = True
-                game_info.append(ended_game[
-                                         "game_info"])
-                return True
-
         return False
 
     async def collect_odds_data(self, target_leagues: dict):
@@ -443,7 +428,6 @@ class OddsFetcher:
         """
         active_matches = {"fb.com": {}}
         previous_leagues_data = {"fb.com": {}}
-        games_not_found = copy.deepcopy(self.previous_data)
         try:
             html = self.driver_fb.page_source
             soup = BeautifulSoup(html, 'html.parser')
@@ -581,6 +565,8 @@ class OddsFetcher:
                                 liga_name_translate] = []
                         previous_leagues_data["fb.com"][
                             liga_name_translate].append(game_info)
+                        # Проверка завершенных игр перед обновлением данных
+            await self.check_finished_games(previous_leagues_data, active_matches)
 
             self.previous_data = previous_leagues_data
 
@@ -591,9 +577,62 @@ class OddsFetcher:
             # Отправляем данные, только если они изменились
             if any(active_matches["fb.com"].values()):
                 await self.send_data(active_matches)
-            print("END GAME:", self.ended_games["fb.com"]) if self.ended_games["fb.com"] else ...
         except Exception as e:
             logger.error(f"Error in collect_odds_data: {str(e)}")
+
+    async def check_finished_games(self, current_data: Dict[str, Any],
+                             active_matches: Dict[str, Any]):
+        """
+        Проверяет и отмечает завершенные игры, которые пропали из текущих данных.
+
+        :param current_data: Текущие данные о лигах и играх.
+        :param active_matches: Словарь с активными матчами, куда добавляются завершенные игры.
+        """
+        for site, leagues in self.previous_data.items():
+            for league, games in leagues.items():
+                for game in games:
+                    if league not in current_data.get(site, {}):
+                        # Добавляем игру в ended_games или обновляем счетчик
+                        game_key = self._generate_game_key(site, league, game)
+                        if game_key in self.ended_games:
+                            self.ended_games[game_key]['counter'] += 1
+                            print("ПРОПАЛА ИГРА", game_key)
+                        else:
+                            self.ended_games[game_key] = {'game': game,
+                                                          'counter': 1}
+                        continue
+
+                    if game not in current_data[site][league]:
+                        game_key = self._generate_game_key(site, league, game)
+                        if game_key in self.ended_games:
+                            self.ended_games[game_key]['counter'] += 1
+                        else:
+                            self.ended_games[game_key] = {'game': game,
+                                                          'counter': 1}
+
+        # Обработка завершенных игр с учетом счетчика
+        for game_key, game_info in list(self.ended_games.items()):
+            if game_info[
+                'counter'] >= 200:  # Если игра не появилась за 200 проверок
+                game = game_info['game']
+                game['is_end_game'] = True
+                league = game.get('league_name')  # Если нужно получить имя лиги
+                if league:
+                    active_matches["fb.com"].setdefault(league, []).append(game)
+                print(f"Игра окончательно завершена: {game}")
+                del self.ended_games[game_key]  # Удаляем из ended_games
+
+    async def _generate_game_key(self, site: str, league: str,
+                           game: Dict[str, Any]) -> str:
+        """
+        Генерирует уникальный ключ для игры на основе сайта, лиги и имен команд.
+
+        :param site: Название сайта, откуда получены данные.
+        :param league: Название лиги.
+        :param game: Данные о конкретной игре.
+        :return: Уникальный строковый ключ для игры.
+        """
+        return f"{site}_{league}_{game['opponent_0']}_{game['opponent_1']}"
 
     async def close(self):
         if self.driver_fb:
