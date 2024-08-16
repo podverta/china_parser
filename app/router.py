@@ -4,7 +4,7 @@ import aiofiles
 import subprocess
 import dotenv
 from fastapi import APIRouter, HTTPException
-from services_app.tasks import parse_some_data_akty, parse_some_data_fb
+from services_app.tasks import parse_some_data
 from app.schema import ParserRequest
 from transfer_data.redis_client import RedisClient
 
@@ -19,27 +19,23 @@ async def run_parser(request: ParserRequest):
     :param request: Данные для запуска парсера (имя класса парсера, аргументы и именованные аргументы)
     :return: Сообщение о статусе запуска парсера
     """
-    parsers_map = {
-        'FetchAkty': parse_some_data_akty,
-        'FB': parse_some_data_fb
-    }
-
+    parsers_name = [
+        'FetchAkty',
+        'FB'
+    ]
     try:
-        # Проверяем, существует ли парсер в словаре
-        if request.parser_name not in parsers_map:
+        if request.parser_name not in parsers_name:
             raise HTTPException(status_code=400, detail="Parser class not found")
 
-        # Вызываем соответствующую задачу Celery для указанного парсера
-        celery_task = parsers_map[request.parser_name]
-        celery_task.delay(request.parser_name, *request.args, **request.kwargs)
+        # Запускаем задачу Celery
+        parse_some_data.delay(request.parser_name, *request.args, **request.kwargs)
 
         return {"status": "Parser is running", "parser": request.parser_name}
     except HTTPException as e:
-        # HTTPException уже правильно формируется выше, можно просто прокинуть дальше
         raise e
     except Exception as e:
-        # Важно отлавливать все возможные ошибки и возвращать понятный ответ
-        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @route.get("/logs/akty")
 async def get_akty_logs():
