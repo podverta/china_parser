@@ -173,7 +173,8 @@ class FetchAkty:
             await self.send_to_logs(
                 f"Connecting to Socket.IO server at {SOCKETIO_URL}"
             )
-            await self.sio.connect(SOCKETIO_URL,
+            if not self.sio.connected:
+                await self.sio.connect(SOCKETIO_URL,
                                    auth={'socket_key': SOCKET_KEY})
         except Exception as e:
             print(f"Error initializing async components: {e}")
@@ -784,8 +785,9 @@ class FetchAkty:
                 await self.monitor_leagues(leagues)
                 break  # Успешное выполнение, выход из цикла
             except Exception as e:
-                self.driver.save_screenshot(
-                    f'screenshot_akty_{attempt}.png')
+                if self.driver and self.driver.session_id:
+                    self.driver.save_screenshot(
+                        f'screenshot_akty_{attempt}.png')
                 await self.send_to_logs(
                     f"Произошла ошибка: {str(e)}. Попытка {attempt + 1} из {max_retries}.")
                 await asyncio.sleep(10)

@@ -248,7 +248,8 @@ class OddsFetcher:
             await self.send_to_logs(
                 f"Connecting to Socket.IO server at {SOCKETIO_URL}"
             )
-            await self.sio.connect(SOCKETIO_URL, auth={'socket_key': SOCKET_KEY})
+            if not self.sio.connected:
+                await self.sio.connect(SOCKETIO_URL, auth={'socket_key': SOCKET_KEY})
         except Exception as e:
             print(f"Error initializing async components: {e}")
             raise
@@ -628,9 +629,10 @@ class OddsFetcher:
                     await self.collect_odds_data(leagues)
                     await asyncio.sleep(1)  # Пауза между циклами сбора данных
             except Exception as e:
-                self.driver_fb.save_screenshot(
-                    f'screenshot_fb_{attempt}.png'
-                )
+                if self.driver_fb and self.driver_fb.session_id:
+                    self.driver_fb.save_screenshot(
+                        f'screenshot_fb_{attempt}.png'
+                    )
                 await self.send_to_logs(
                     f"Произошла ошибка: {str(e)}. "
                     f"Попытка {attempt + 1} из {max_retries}.")
