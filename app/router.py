@@ -119,7 +119,7 @@ async def get_game(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/update-token/")
+@route.post("/update-token/")
 async def update_token(new_token: str):
     """
     Эндпоинт для обновления токена в файле .env и перезапуска приложения.
