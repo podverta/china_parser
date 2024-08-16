@@ -27,12 +27,12 @@ logger = setup_logger('celery', 'celery.log')
 celery_app.conf.beat_schedule = {
     'run_fetch_akty': {
         'task': 'services_app.tasks.parse_some_data',
-        'schedule': crontab(minute='*/6'),
+        'schedule': crontab(minute='*/15'),
         'args': ('FetchAkty',),
     },
     'run_fb': {
         'task': 'services_app.tasks.parse_some_data',
-        'schedule': crontab(minute='*/2',),
+        'schedule': crontab(minute='*/10',),
         'args': ('FB',),
     },
     'check_and_start_parsers': {

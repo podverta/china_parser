@@ -593,7 +593,7 @@ class OddsFetcher:
                 for game in games:
                     if league not in current_data.get(site, {}):
                         # Добавляем игру в ended_games или обновляем счетчик
-                        game_key = self._generate_game_key(site, league, game)
+                        game_key = await self._generate_game_key(site, league, game)
                         if game_key in self.ended_games:
                             self.ended_games[game_key]['counter'] += 1
                             print("ПРОПАЛА ИГРА", game_key)
@@ -603,7 +603,7 @@ class OddsFetcher:
                         continue
 
                     if game not in current_data[site][league]:
-                        game_key = self._generate_game_key(site, league, game)
+                        game_key = await self._generate_game_key(site, league, game)
                         if game_key in self.ended_games:
                             self.ended_games[game_key]['counter'] += 1
                         else:
