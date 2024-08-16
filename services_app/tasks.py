@@ -91,25 +91,20 @@ def _parse_some_data(self, parser_name, *args, **kwargs):
     try:
         logger.info(f"Запуск парсера {parser_name} с task_id {self.request.id}")
 
-        # Получаем класс парсера по имени
+        # Логируем полученные аргументы
+        logger.debug(f"Переданные аргументы: {args}, {kwargs}")
+
         parser_class = parsers.get(parser_name)
         if not parser_class:
             raise ValueError(f"Парсер с именем {parser_name} не найден")
 
-        # Удаляем `is_first_run` из kwargs, чтобы не передавать его в конструктор парсера
-        kwargs.pop('is_first_run', None)
+        # Логируем, какой парсер был выбран
+        logger.debug(f"Выбранный парсер: {parser_class.__name__}")
 
         parser = parser_class(*args, **kwargs)
 
         asyncio.run(parser.run())
         logger.info(f"Парсер {parser_name} с task_id {self.request.id} успешно завершен.")
-
-    except TypeError as e:
-        logger.error(f"Ошибка при создании парсера {parser_name}: {e}")
-        self.retry(exc=e)
-    except urllib3.exceptions.ProtocolError as e:
-        logger.error(f"Ошибка протокола при выполнении парсера {parser_name}: {e}")
-        self.retry(exc=e)
     except Exception as e:
         logger.error(f"Ошибка при выполнении парсера {parser_name}: {e}")
         self.retry(exc=e)
