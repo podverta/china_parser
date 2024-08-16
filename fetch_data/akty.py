@@ -52,7 +52,9 @@ HEADLESS = True
 
 class FetchAkty:
     def __init__(
-            self
+            self,
+            url=URL,
+            proxy=PROXY
     ):
         """
         Инициализация класса FetchAkty. Устанавливает URL
@@ -196,7 +198,7 @@ class FetchAkty:
         attempt = 0
         while attempt < retries:
             try:
-                driver = uc.Chrome(options=options, headless=False)
+                driver = uc.Chrome(options=options, headless=headless)
                 return driver
             except WebDriverException as e:
                 attempt += 1
@@ -205,7 +207,7 @@ class FetchAkty:
                     f"(попытка {attempt} из {retries}): {e}")
                 if attempt >= retries:
                     raise e
-                await asyncio.sleep(5)  # Ожидание перед повторной попыткой
+                await asyncio.sleep(5)
 
     async def get_url(
             self,
