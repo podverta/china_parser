@@ -389,8 +389,6 @@ class FetchAkty:
                 str.maketrans('', '', ' (),女')).strip().lower()
 
             if not sanitized_name:  # Проверяем, не стала ли строка пустой после очистки
-                await self.send_to_logs(
-                    f"Строка стала пустой после очистки: '{text}'")
                 return text
 
             for key in self.translate_cash:

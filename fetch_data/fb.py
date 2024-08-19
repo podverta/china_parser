@@ -367,8 +367,6 @@ class OddsFetcher:
             str.maketrans('', '', ' (),女')).strip().lower()
 
         if not sanitized_name:
-            await self.send_to_logs(
-                f"Строка стала пустой после очистки: '{short_name}'")
             return short_name
 
         # Ищем частичное совпадение
