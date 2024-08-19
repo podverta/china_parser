@@ -187,7 +187,7 @@ class OddsFetcher:
             if is_save:
                 opponent_0 = data.get('opponent_0', '')
                 opponent_1 = data.get('opponent_1', '')
-                key = (f"akty.com, {liga_name.lower()}, "
+                key = (f"fb.com, {liga_name.lower()}, "
                        f"{opponent_0.lower()}, {opponent_1.lower()}")
 
                 data_rate['server_time'] = data.get('server_time', '')
