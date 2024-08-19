@@ -351,7 +351,9 @@ class FetchAkty:
         for existing_dict in existing_list:
             if (existing_dict['opponent_0'] == new_dict['opponent_0'] and
                     existing_dict['opponent_1'] == new_dict['opponent_1']):
-                if existing_dict['rate'] != new_dict['rate']:
+                if (existing_dict['rate'] != new_dict['rate']) and (
+                        existing_dict['opponent_0'] != existing_dict[
+                    'opponent_1']):
                     await self.save_games(new_dict, liga_name)
                     return True
                 return False

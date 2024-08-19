@@ -420,8 +420,8 @@ class OddsFetcher:
         for existing_dict in existing_list:
             if (existing_dict['opponent_0'] == opponent_0 and
                     existing_dict['opponent_1'] == opponent_1):
-                # Если данные о коэффициентах изменились
-                if existing_dict['rate'] != new_dict['rate']:
+                if (existing_dict['rate'] != new_dict['rate']) and (
+                        existing_dict['opponent_0'] != existing_dict['opponent_1']):
                     await self.save_games(new_dict, liga_name)
                     return True
                 return False
