@@ -111,7 +111,8 @@ class FetchAkty:
                         data_rate[rate_bet] = 0.0
 
             # Проверяем, нужно ли сохранять данные в Redis
-            is_save = any(data_rate[rate_bet] <= 1.73 for rate_bet in rate_bets)
+            is_save = any(0 < data_rate[rate_bet] <= 1.73 for rate_bet in (
+                    rate_bets))
 
             if is_save:
                 opponent_0 = data.get('opponent_0', '')
@@ -125,7 +126,7 @@ class FetchAkty:
                     await self.redis_client.add_to_list(key, json_data)
 
                 # Проверяем, нужно ли отправить данные в Telegram
-                is_send_tg = any(
+                is_send_tg = any(0 <
                     data_rate[rate_bet] <= 1.68 for rate_bet in rate_bets)
 
                 if is_send_tg:
