@@ -21,7 +21,7 @@ def get_emoji_for_bet(bet: float) -> str:
     :param bet: Коэффициент ставки
     :return: Строка с эмодзи
     """
-    if bet <= 1.59:
+    if 0 < bet <= 1.59:
         return "🟣"
     elif 1.60 <= bet <= 1.63:
         return "🔴"
