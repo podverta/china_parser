@@ -25,19 +25,14 @@ logger = setup_logger('celery', 'celery.log')
 
 # Настройка расписания задач
 celery_app.conf.beat_schedule = {
-    'run_fetch_akty': {
-        'task': 'services_app.tasks.parse_some_data',
-        'schedule': crontab(minute=4, hour='*/3'),
-        'args': ('FetchAkty',),
-    },
-    'run_fb': {
-        'task': 'services_app.tasks.parse_some_data',
-        'schedule': crontab(minute=5, hour='*/7'),
-        'args': ('FB',),
-    },
     'check_and_start_parsers': {
         'task': 'services_app.tasks.check_and_start_parsers',
         'schedule': crontab(minute=0, hour='*'),  # Каждый час
+    },
+    'restart_all_parsers': {  # Новая задача для перезапуска всех парсеров раз в 8 часов
+        'task': 'services_app.tasks.check_and_start_parsers',
+        'schedule': crontab(minute='*/23'),  # Каждые 8 часов
+        'args': (True,),  # Первый запуск, будет очищать ключи в Redis
     },
 }
 celery_app.conf.timezone = 'UTC'

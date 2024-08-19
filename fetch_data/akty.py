@@ -88,7 +88,7 @@ class FetchAkty:
 
         Args:
             data (dict): Данные в формате JSON для сохранения.
-            liga_name (str): Наименование лиги для сохранения в redis.
+            liga_name (str): Наименование лиги для сохранения в Redis.
         """
         try:
             rate_bets = [
@@ -101,6 +101,9 @@ class FetchAkty:
 
             def safe_float(value):
                 try:
+                    if value in (
+                    '-', '', None):
+                        return float(0)
                     return float(value)
                 except (ValueError, TypeError):
                     return None
@@ -373,33 +376,44 @@ class FetchAkty:
         password_input.send_keys(Keys.ENTER)
         await self.send_to_logs('Авторизация успешно пройдена')
 
-    async def translate_and_cache(
-            self,
-            text: str
-    ) -> str:
+    async def translate_and_cache(self, text: str) -> str:
         """
-        Перевод строки на Русский язык.
+        Перевод строки на русский язык с кэшированием результата.
+
+        Если строка пустая или после очистки становится пустой, возвращает исходную строку.
         """
         try:
             if not text:
                 return text
-            sanitized_name = text.translate(str.maketrans('', '', ' (),女')).lower()
+
+            sanitized_name = text.translate(
+                str.maketrans('', '', ' (),女')).strip().lower()
+
+            if not sanitized_name:  # Проверяем, не стала ли строка пустой после очистки
+                await self.send_to_logs(
+                    f"Строка стала пустой после очистки: '{text}'")
+                return text
+
             for key in self.translate_cash:
                 if key in sanitized_name:
                     return self.translate_cash[key]
 
-            translation = self.translator.translate(sanitized_name, "english").result
+            translation = self.translator.translate(sanitized_name,
+                                                    "english").result.lower()
             self.translate_cash = load_translate_cash()
-            self.translate_cash[sanitized_name] = translation.lower()
+            self.translate_cash[sanitized_name] = translation
             save_translate_cash(self.translate_cash)
+
             await self.send_to_logs(
-                f"Перевод текста: '{sanitized_name}' перевод: '{translation}'")
+                f"Перевод текста: '{sanitized_name}' перевод: '{translation}'"
+            )
 
             return translation
 
         except Exception as e:
             await self.send_to_logs(
-                f"Ошибка при переводе: {e}, текст: '{sanitized_name}'")
+                f"Ошибка при переводе: {e}, текст: '{sanitized_name}'"
+            )
             return text
 
     async def main_page(

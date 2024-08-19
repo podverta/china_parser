@@ -172,6 +172,8 @@ class OddsFetcher:
 
             def safe_float(value):
                 try:
+                    if value in ('-', '', None):
+                        return float(0)
                     return float(value)
                 except (ValueError, TypeError):
                     return None
@@ -345,12 +347,10 @@ class OddsFetcher:
         await self.sio.disconnect()
         self.driver_fb.quit()
 
-    async def get_translate(
-            self,
-            short_name: str
-    ) -> str:
+    async def get_translate(self, short_name: str) -> str:
         """
         Получает полное название команды, используя кэш или выполнив перевод текста на английский.
+
         Если частичное совпадение с ключом найдено, возвращает значение.
         Если перевод не найден, переводит текст на английский и добавляет в кэш.
 
@@ -364,7 +364,13 @@ class OddsFetcher:
             return short_name
 
         # Убираем символы из short_name
-        sanitized_name = short_name.translate(str.maketrans('', '', ' (),女')).lower()
+        sanitized_name = short_name.translate(
+            str.maketrans('', '', ' (),女')).strip().lower()
+
+        if not sanitized_name:
+            await self.send_to_logs(
+                f"Строка стала пустой после очистки: '{short_name}'")
+            return short_name
 
         # Ищем частичное совпадение
         for key in self.translate_cash:
@@ -372,24 +378,27 @@ class OddsFetcher:
                 return self.translate_cash[key]
 
         # Если совпадение не найдено, выполняем перевод
-
         try:
-            translation = self.translator.translate(sanitized_name, "english").result
+            translation = self.translator.translate(sanitized_name,
+                                                    "english").result.lower()
             self.translate_cash = load_translate_cash()
-            self.translate_cash[sanitized_name] = translation.lower()
+            self.translate_cash[sanitized_name] = translation
             save_translate_cash(self.translate_cash)
 
             # Логируем новый перевод
             await self.send_to_logs(
-                f"Перевод текста: текст: {sanitized_name} перевод: {translation}")
+                f"Перевод текста: '{sanitized_name}', перевод: '{translation}'"
+            )
 
             return translation
 
         except Exception as e:
             # Логируем ошибку перевода
             await self.send_to_logs(
-                f"Ошибка перевода текста: {short_name}, ошибка: {str(e)}")
+                f"Ошибка перевода текста: '{short_name}', ошибка: {str(e)}"
+            )
             return short_name
+
 
     async def check_changed_dict(
             self,
