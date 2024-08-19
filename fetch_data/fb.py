@@ -621,7 +621,7 @@ class OddsFetcher:
         # Обработка завершенных игр с учетом счетчика
         for game_key, game_info in list(self.ended_games.items()):
             if game_info[
-                'counter'] >= 1000:
+                'counter'] >= 2000:
                 game = game_info['game']
                 game['is_end_game'] = True
                 league = game.get('league_name')  # Если нужно получить имя лиги
