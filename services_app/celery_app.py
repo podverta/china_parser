@@ -1,5 +1,6 @@
 import os
 import sys
+from datetime import timedelta
 from celery import Celery
 from celery.schedules import crontab
 from dotenv import load_dotenv
@@ -27,12 +28,12 @@ logger = setup_logger('celery', 'celery.log')
 celery_app.conf.beat_schedule = {
     'check_and_start_parsers': {
         'task': 'services_app.tasks.check_and_start_parsers',
-        'schedule': crontab(minute=0, hour='*'),  # Каждый час
+        'schedule': timedelta(minutes=23),  # Каждые 23 минуты
     },
-    'restart_all_parsers': {  # Новая задача для перезапуска всех парсеров раз в 8 часов
+    'restart_all_parsers': {
         'task': 'services_app.tasks.check_and_start_parsers',
-        'schedule': crontab(minute='*/23'),  # Каждые 8 часов
-        'args': (True,),  # Первый запуск, будет очищать ключи в Redis
+        'schedule': crontab(minute=0, hour='*/8'),  # Каждые 8 часов
+        'args': (True,),  # Первый запуск с очисткой ключей в Redis
     },
 }
 celery_app.conf.timezone = 'UTC'
