@@ -101,19 +101,20 @@ class FetchAkty:
 
             def safe_float(value):
                 try:
-                    if value in (
-                    '-', '', None):
-                        return float(0)
+                    if value in ('-', '', None):
+                        return 0.0
                     return float(value)
                 except (ValueError, TypeError):
                     return None
 
+            # Преобразуем ставки в float и сохраняем их в словаре
+            rates = {rate_bet: safe_float(data_rate.get(rate_bet, '0')) for
+                     rate_bet in rate_bets}
+
             # Проверяем, нужно ли сохранять данные в Redis
             is_save = any(
-                safe_float(data_rate.get(rate_bet, '0')) is not None and
-                safe_float(data_rate.get(rate_bet, '0')) <= 1.73
-                for rate_bet in rate_bets
-            )
+                rate is not None and rate <= 1.73 for rate in rates.values())
+
             if is_save:
                 opponent_0 = data.get('opponent_0', '')
                 opponent_1 = data.get('opponent_1', '')
@@ -126,16 +127,16 @@ class FetchAkty:
                     await self.redis_client.add_to_list(key, json_data)
 
                 # Проверяем, нужно ли отправить данные в Telegram
-                is_send_tg = any(
-                    safe_float(data_rate.get(rate_bet, '0')) is not None and
-                    safe_float(data_rate.get(rate_bet, '0')) <= 1.68
-                    for rate_bet in rate_bets
-                )
+                is_send_tg = any(rate is not None and rate <= 1.68 for rate in
+                                 rates.values())
+
                 if is_send_tg:
-                    data_rate['opponent_0'] = opponent_0
-                    data_rate['opponent_1'] = opponent_1
-                    data_rate['liga'] = liga_name
-                    data_rate['site'] = 'OB'
+                    data_rate.update({
+                        'opponent_0': opponent_0,
+                        'opponent_1': opponent_1,
+                        'liga': liga_name,
+                        'site': 'OB'
+                    })
                     await send_message_to_telegram(data_rate)
 
         except Exception as e:
