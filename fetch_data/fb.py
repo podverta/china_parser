@@ -170,21 +170,19 @@ class OddsFetcher:
             ]
             data_rate = data.get('rate', {})
 
-            def safe_float(value):
-                try:
-                    if value in ('-', '', None):
-                        return 0.0
-                    return float(value)
-                except (ValueError, TypeError):
-                    return None
-
-            # Преобразуем ставки в float и сохраняем их в словаре
-            rates = {rate_bet: safe_float(data_rate.get(rate_bet, '0')) for
-                     rate_bet in rate_bets}
+            # Преобразуем значения в data_rate
+            for rate_bet in rate_bets:
+                value = data_rate.get(rate_bet, '0')
+                if value in ('-', '', None):
+                    data_rate[rate_bet] = 0.0
+                else:
+                    try:
+                        data_rate[rate_bet] = float(value)
+                    except (ValueError, TypeError):
+                        data_rate[rate_bet] = 0.0
 
             # Проверяем, нужно ли сохранять данные в Redis
-            is_save = any(
-                rate is not None and rate <= 1.73 for rate in rates.values())
+            is_save = any(data_rate[rate_bet] <= 1.73 for rate_bet in rate_bets)
 
             if is_save:
                 opponent_0 = data.get('opponent_0', '')
@@ -198,8 +196,8 @@ class OddsFetcher:
                     await self.redis_client.add_to_list(key, json_data)
 
                 # Проверяем, нужно ли отправить данные в Telegram
-                is_send_tg = any(rate is not None and rate <= 1.68 for rate in
-                                 rates.values())
+                is_send_tg = any(
+                    data_rate[rate_bet] <= 1.68 for rate_bet in rate_bets)
 
                 if is_send_tg:
                     data_rate.update({
@@ -212,7 +210,6 @@ class OddsFetcher:
 
         except Exception as e:
             await self.send_to_logs(f'Ошибка при сохранении данных: {str(e)}')
-
     async def send_data(
             self,
             data: dict,
