@@ -28,12 +28,12 @@ logger = setup_logger('celery', 'celery.log')
 celery_app.conf.beat_schedule = {
     'check_and_start_parsers': {
         'task': 'services_app.tasks.check_and_start_parsers',
-        'schedule': timedelta(minutes=23),  # Каждые 23 минуты
+        'schedule': crontab(minute='*/40'),
     },
     'restart_all_parsers': {
         'task': 'services_app.tasks.check_and_start_parsers',
-        'schedule': crontab(minute=0, hour='*/8'),  # Каждые 8 часов
-        'args': (True,),  # Первый запуск с очисткой ключей в Redis
+        'schedule': crontab(minute=0, hour='*/8'),
+        'args': (True,),
     },
 }
 celery_app.conf.timezone = 'UTC'
