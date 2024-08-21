@@ -53,6 +53,6 @@ async def send_message_to_telegram(content: dict) -> None:
     )
     try:
         # Отправка сообщения в чат с использованием моноширинного шрифта для таблицы
-        await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=f"```\n{table}\n```", parse_mode="Markdown")
+        await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=f"```\n{table}\n```")
     except TelegramError as e:
         print(f"Ошибка при отправке сообщения: {e}")
