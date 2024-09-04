@@ -102,3 +102,14 @@ class RedisClient:
                 items = await redis.lrange(key, 0, count - 1)
                 # Декодируем байты и преобразуем в JSON объекты
                 return [json.loads(item.decode("utf-8")) for item in items]
+
+    async def delete_data(self, key: str):
+        """
+        Удаляет данные из Redis по ключу.
+
+        Args:
+            key (str): Ключ, который необходимо удалить.
+        """
+        if self.pool:
+            async with aioredis.Redis(connection_pool=self.pool) as redis:
+                await redis.delete(key)

@@ -211,6 +211,33 @@ class OddsFetcher:
 
         except Exception as e:
             await self.send_to_logs(f'Ошибка при сохранении данных: {str(e)}')
+
+    async def delete_games(self, data: dict, liga_name: str):
+        """
+        Удаляет игры по отдельным ключам из Redis.
+
+        Args:
+            data (dict): Данные, содержащие информацию о ключах для удаления.
+            liga_name (str): Наименование лиги для удаления данных в Redis.
+        """
+        try:
+            opponent_0 = data.get('opponent_0', '')
+            opponent_1 = data.get('opponent_1', '')
+            key = (f"akty.com, {liga_name.lower()}, "
+                   f"{opponent_0.lower()}, {opponent_1.lower()}")
+            key_2 = (f"fb.com, {liga_name.lower()}, "
+                   f"{opponent_0.lower()}, {opponent_1.lower()}")
+            if not self.debug:
+                # Удаляем данные из Redis по ключу
+                for key in [key, key_2]:
+                    await self.redis_client.delete_data(key)
+            # Логируем успешное удаление
+            await self.send_to_logs(
+                f"Данные для ключа '{key}' успешно удалены.")
+
+        except Exception as e:
+            await self.send_to_logs(f'Ошибка при удалении данных: {str(e)}')
+
     async def send_data(
             self,
             data: dict,
@@ -397,7 +424,6 @@ class OddsFetcher:
             )
             return short_name
 
-
     async def check_changed_dict(
             self,
             existing_list: List[Dict[str, Any]],
@@ -574,7 +600,10 @@ class OddsFetcher:
                         previous_leagues_data["fb.com"][
                             liga_name_translate].append(game_info)
                         # Проверка завершенных игр перед обновлением данных
-            await self.check_finished_games(previous_leagues_data, active_matches)
+            await self.check_finished_games(
+                previous_leagues_data,
+                active_matches,
+            )
 
             self.previous_data = previous_leagues_data
 
@@ -623,11 +652,16 @@ class OddsFetcher:
                 'counter'] >= 2000:
                 game = game_info['game']
                 game['is_end_game'] = True
-                league = game.get('league_name')  # Если нужно получить имя лиги
+                league = game.get('league_name')
                 if league:
                     active_matches["fb.com"].setdefault(league, []).append(game)
+
                 logger.error(f"Игра окончательно завершена: {game}")
-                del self.ended_games[game_key]  # Удаляем из ended_games
+                await self.delete_games(
+                    game,
+                    league
+                )
+                del self.ended_games[game_key]
 
     async def _generate_game_key(self, site: str, league: str,
                            game: Dict[str, Any]) -> str:

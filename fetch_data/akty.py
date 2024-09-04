@@ -337,8 +337,8 @@ class FetchAkty:
             self,
             existing_list: List[Dict[str, Any]],
             game_info: Dict[str, Any],
-            liga_name: str
-    ) -> bool:
+            liga_name: str,
+    ) -> bool | None:
         """
         Проверяет и обновляет список словарей, если конкретный словарь изменился, или добавляет его, если его нет.
 
