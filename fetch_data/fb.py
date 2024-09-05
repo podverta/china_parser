@@ -618,7 +618,7 @@ class OddsFetcher:
             logger.error(f"Error in collect_odds_data: {str(e)}")
 
     async def check_finished_games(self, current_data: Dict[str, Any],
-                             active_matches: Dict[str, Any]):
+                                   active_matches: Dict[str, Any]) -> None:
         """
         Проверяет и отмечает завершенные игры, которые пропали из текущих данных.
 
@@ -628,40 +628,42 @@ class OddsFetcher:
         for site, leagues in self.previous_data.items():
             for league, games in leagues.items():
                 for game in games:
+                    # Проверка на наличие лиги в текущих данных
                     if league not in current_data.get(site, {}):
-                        # Добавляем игру в ended_games или обновляем счетчик
-                        game_key = await self._generate_game_key(site, league, game)
-                        if game_key in self.ended_games:
-                            self.ended_games[game_key]['counter'] += 1
-                        else:
-                            self.ended_games[game_key] = {'game': game,
-                                                          'counter': 1}
+                        await self._mark_game_as_ended(site, league, game)
                         continue
 
+                    # Проверка на наличие игры в текущих данных
                     if game not in current_data[site][league]:
-                        game_key = await self._generate_game_key(site, league, game)
-                        if game_key in self.ended_games:
-                            self.ended_games[game_key]['counter'] += 1
-                        else:
-                            self.ended_games[game_key] = {'game': game,
-                                                          'counter': 1}
+                        await self._mark_game_as_ended(site, league, game)
 
         # Обработка завершенных игр с учетом счетчика
         for game_key, game_info in list(self.ended_games.items()):
-            if game_info[
-                'counter'] >= 2000:
+            if game_info['counter'] >= 2000:
                 game = game_info['game']
                 game['is_end_game'] = True
                 league = game.get('league_name')
                 if league:
                     active_matches["fb.com"].setdefault(league, []).append(game)
-
+                    await self.delete_games(game, league)
                 logger.error(f"Игра окончательно завершена: {game}")
-                await self.delete_games(
-                    game,
-                    league
-                )
                 del self.ended_games[game_key]
+
+    async def _mark_game_as_ended(self, site: str, league: str,
+                                  game: dict) -> None:
+        """
+        Отмечает игру как завершенную или увеличивает счетчик завершенных игр.
+
+        :param site: Название сайта.
+        :param league: Название лиги.
+        :param game: Данные игры.
+        """
+        game_key = await self._generate_game_key(site, league, game)
+        if game_key in self.ended_games:
+            self.ended_games[game_key]['counter'] += 1
+        else:
+            game['league_name'] = league
+            self.ended_games[game_key] = {'game': game, 'counter': 1}
 
     async def _generate_game_key(self, site: str, league: str,
                            game: Dict[str, Any]) -> str:
