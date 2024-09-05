@@ -136,8 +136,6 @@ class FetchAkty:
                     data_fb = await self.redis_client.get_last_item(key)
                     if data_fb:
                         data_fb['site'] = 'FB'
-                    await self.send_to_logs(
-                        f'Последний элекмент: {data_fb}, {type(data_fb)}')
                     data_rate.update({
                         'opponent_0': opponent_0,
                         'opponent_1': opponent_1,
