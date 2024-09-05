@@ -206,7 +206,10 @@ class OddsFetcher:
                            f"{opponent_0.lower()}, {opponent_1.lower()}")
                     # Получаем данные из Redis
                     data_akty = await self.redis_client.get_last_item(key)
-                    data_akty['site'] = 'OB'
+                    if data_akty:
+                        data_akty['site'] = 'OB'
+                        await self.send_to_logs(
+                            f'Последний элекмент: {data_akty}, {type(data_akty)}')
                     data_rate.update({
                         'opponent_0': opponent_0,
                         'opponent_1': opponent_1,
