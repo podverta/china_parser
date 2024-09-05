@@ -202,13 +202,21 @@ class OddsFetcher:
                     data_rate[rate_bet] <= 1.68 for rate_bet in rate_bets)
 
                 if is_send_tg:
+                    key = (f"akty.com, {liga_name.lower()}, "
+                           f"{opponent_0.lower()}, {opponent_1.lower()}")
+                    # Получаем данные из Redis
+                    data_akty = await self.redis_client.get_last_item(key)
+                    data_akty['site'] = 'OB'
                     data_rate.update({
                         'opponent_0': opponent_0,
                         'opponent_1': opponent_1,
                         'liga': liga_name,
                         'site': 'FB'
                     })
-                    await send_message_to_telegram(data_rate)
+                    await send_message_to_telegram(
+                        data_rate,
+                        data_akty
+                    )
 
         except Exception as e:
             await self.send_to_logs(f'Ошибка при сохранении данных: {str(e)}')

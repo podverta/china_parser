@@ -132,9 +132,9 @@ class FetchAkty:
                 if is_send_tg:
                     key = (f"fb.com, {liga_name.lower()}, "
                            f"{opponent_0.lower()}, {opponent_1.lower()}")
-
                     # Получаем данные из Redis
-                    data = await self.redis_client.get_last_item(key)
+                    data_fb = await self.redis_client.get_last_item(key)
+                    data_fb['site'] = 'FB'
                     await self.send_to_logs(
                         f'Последний элекмент: {data}, {type(data)}')
                     data_rate.update({
@@ -143,7 +143,10 @@ class FetchAkty:
                         'liga': liga_name,
                         'site': 'OB'
                     })
-                    await send_message_to_telegram(data_rate)
+                    await send_message_to_telegram(
+                        data_rate,
+                        data_fb
+                    )
 
         except Exception as e:
             await self.send_to_logs(f'Ошибка при сохранении данных: {str(e)}')
