@@ -53,7 +53,7 @@ async def send_message_to_telegram(
     table = (
         f"<b>{opponent_0.upper()} vs {opponent_1.upper()}</b>\n"
         f"{content['time_game']}\n"
-        "--------------------------\n"
+        "-----------------------------------------------\n"
         f"<b>{site}</b>\n"
         f"Total: {content['total_point']}|{total_bet_0} {get_emoji_for_bet(total_bet_0)}|{total_bet_1} {get_emoji_for_bet(total_bet_1)}\n"
         f"Handi: {content['handicap_point_0']}|{handicap_bet_0} {get_emoji_for_bet(handicap_bet_0)}|{content['handicap_point_1']}|{handicap_bet_1} {get_emoji_for_bet(handicap_bet_1)}\n"
@@ -65,7 +65,7 @@ async def send_message_to_telegram(
         site_2_handicap_bet_1 = float(content_2.get('handicap_bet_1', '0'))
         site_2 = content_2['site']
         table += (
-            "--------------------------\n"
+            "-----------------------------------------------\n"
             f"<b>{site_2}</b>\n"
             f"Total: {content['total_point']}|{site_2_total_bet_0} {get_emoji_for_bet(site_2_total_bet_0)}|{site_2_total_bet_1} {get_emoji_for_bet(site_2_total_bet_1)}\n"
             f"Handi: {content['handicap_point_0']}|{site_2_handicap_bet_0} {get_emoji_for_bet(site_2_handicap_bet_0)}|{content['handicap_point_1']}|{site_2_handicap_bet_1} {get_emoji_for_bet(site_2_handicap_bet_1)}\n"
