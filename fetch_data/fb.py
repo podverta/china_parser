@@ -184,42 +184,46 @@ class OddsFetcher:
             # Проверяем, нужно ли сохранять данные в Redis
             is_save = any(0 < data_rate[rate_bet] <= 1.73 for rate_bet in (
                     rate_bets))
+            opponent_0 = data.get('opponent_0', '')
+            opponent_1 = data.get('opponent_1', '')
 
-            if is_save:
-                opponent_0 = data.get('opponent_0', '')
-                opponent_1 = data.get('opponent_1', '')
-                key = (f"fb.com, {liga_name.lower()}, "
-                       f"{opponent_0.lower()}, {opponent_1.lower()}")
-
-                data_rate['server_time'] = data.get('server_time', '')
-                data_rate['time_game'] = data.get('time_game', '')
-                json_data = json.dumps(data_rate, ensure_ascii=False)
-                if not self.debug:
-                    await self.redis_client.add_to_list(key, json_data)
-
-                # Проверяем, нужно ли отправить данные в Telegram
-                is_send_tg = any(0 <
-                    data_rate[rate_bet] <= 1.68 for rate_bet in rate_bets)
-
-                if is_send_tg:
-                    key = (f"akty.com, {liga_name.lower()}, "
-                           f"{opponent_0.lower()}, {opponent_1.lower()}")
-                    # Получаем данные из Redis
-                    data_akty = await self.redis_client.get_last_item(key)
-                    if data_akty:
-                        data_akty['site'] = 'OB'
-                    await self.send_to_logs(
-                            f'Последний элекмент: {data_akty}, {type(data_akty)}')
-                    data_rate.update({
-                        'opponent_0': opponent_0,
-                        'opponent_1': opponent_1,
-                        'liga': liga_name,
-                        'site': 'FB'
-                    })
-                    await send_message_to_telegram(
-                        data_rate,
-                        data_akty
+            data_rate['server_time'] = data.get('server_time', '')
+            data_rate['time_game'] = data.get('time_game', '')
+            json_data = json.dumps(data_rate, ensure_ascii=False)
+            key_for_all_data = (f"fb.com_all_data, {liga_name.lower()}, "
+                            f"{opponent_0.lower()}, {opponent_1.lower()}")
+            key_for_save = (f"fb.com, {liga_name.lower()}, "
+                   f"{opponent_0.lower()}, {opponent_1.lower()}")
+            if not self.debug:
+                await self.redis_client.add_to_list(key_for_all_data, json_data)
+                if is_save:
+                    await self.redis_client.add_to_list(
+                        key_for_save,
+                        json_data
                     )
+                # Проверяем, нужно ли отправить данные в Telegram
+            is_send_tg = any(0 <
+                data_rate[rate_bet] <= 1.68 for rate_bet in rate_bets)
+
+            if is_send_tg:
+                key_akty = (f"akty.com_all_data, {liga_name.lower()}, "
+                       f"{opponent_0.lower()}, {opponent_1.lower()}")
+                # Получаем данные из Redis
+                data_akty = await self.redis_client.get_last_item(key_akty)
+                if data_akty:
+                    data_akty['site'] = 'OB'
+                await self.send_to_logs(
+                        f'Последний элекмент: {data_akty}, {type(data_akty)}')
+                data_rate.update({
+                    'opponent_0': opponent_0,
+                    'opponent_1': opponent_1,
+                    'liga': liga_name,
+                    'site': 'FB'
+                })
+                await send_message_to_telegram(
+                    data_rate,
+                    data_akty
+                )
 
         except Exception as e:
             await self.send_to_logs(f'Ошибка при сохранении данных: {str(e)}')
