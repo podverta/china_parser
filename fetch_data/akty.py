@@ -120,6 +120,7 @@ class FetchAkty:
                        f"{opponent_0.lower()}, {opponent_1.lower()}")
 
                 data_rate['server_time'] = data.get('server_time', '')
+                data_rate['time_game'] = data.get('time_game', '')
                 json_data = json.dumps(data_rate, ensure_ascii=False)
                 if not self.debug:
                     await self.redis_client.add_to_list(key, json_data)
@@ -129,6 +130,13 @@ class FetchAkty:
                     data_rate[rate_bet] <= 1.68 for rate_bet in rate_bets)
 
                 if is_send_tg:
+                    key = (f"fb, {liga_name.lower()}, "
+                           f"{opponent_0.lower()}, {opponent_1.lower()}")
+
+                    # Получаем данные из Redis
+                    data = await self.redis_client.get_last_item(key)
+                    await self.send_to_logs(
+                        f'Последний элекмент: {data}, {type(data)}')
                     data_rate.update({
                         'opponent_0': opponent_0,
                         'opponent_1': opponent_1,

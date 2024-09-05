@@ -113,3 +113,20 @@ class RedisClient:
         if self.pool:
             async with aioredis.Redis(connection_pool=self.pool) as redis:
                 await redis.delete(key)
+
+    async def get_last_item(self, key: str) -> Optional[Any]:
+        """
+        Получает последний элемент из списка Redis.
+
+        Args:
+            key (str): Ключ для загрузки данных.
+
+        Returns:
+            Optional[Any]: Последний элемент списка или None, если список пуст.
+        """
+        if self.pool:
+            async with aioredis.Redis(connection_pool=self.pool) as redis:
+                item = await redis.lindex(key, -1)
+                if item:
+                    return json.loads(item.decode("utf-8"))
+                return None

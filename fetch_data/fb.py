@@ -192,6 +192,7 @@ class OddsFetcher:
                        f"{opponent_0.lower()}, {opponent_1.lower()}")
 
                 data_rate['server_time'] = data.get('server_time', '')
+                data_rate['time_game'] = data.get('time_game', '')
                 json_data = json.dumps(data_rate, ensure_ascii=False)
                 if not self.debug:
                     await self.redis_client.add_to_list(key, json_data)
