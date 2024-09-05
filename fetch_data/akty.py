@@ -130,7 +130,7 @@ class FetchAkty:
                     data_rate[rate_bet] <= 1.68 for rate_bet in rate_bets)
 
                 if is_send_tg:
-                    key = (f"fb, {liga_name.lower()}, "
+                    key = (f"fb.com, {liga_name.lower()}, "
                            f"{opponent_0.lower()}, {opponent_1.lower()}")
 
                     # Получаем данные из Redis
