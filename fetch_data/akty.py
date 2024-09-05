@@ -6,7 +6,6 @@ import socketio
 import hashlib
 import traceback
 import json
-import time
 import undetected_chromedriver as uc
 from typing import List, Dict, Any
 from translatepy import Translator
@@ -81,7 +80,7 @@ class FetchAkty:
         self.previous_data = {}
         self.translator = Translator()
         self.translate_cash = load_translate_cash()
-
+        self.restart_required = False
     async def save_games(self, data: dict, liga_name: str):
         """
         Сохраняет игры по отдельным ключам в Redis.
@@ -195,13 +194,13 @@ class FetchAkty:
         :param retries: Количество попыток запуска WebDriver в случае ошибки.
         :return: WebDriver для браузера Chrome.
         """
-        options = uc.ChromeOptions()
-        if self.proxy:
-            options.add_argument(f'--proxy-server={self.proxy}')
 
         attempt = 0
         while attempt < retries:
             try:
+                options = uc.ChromeOptions()
+                if self.proxy:
+                    options.add_argument(f'--proxy-server={self.proxy}')
                 driver = uc.Chrome(options=options, headless=headless)
                 return driver
             except WebDriverException as e:
@@ -732,37 +731,43 @@ class FetchAkty:
             return leagues_data
 
     async def monitor_leagues(
-            self,
-            target_leagues: dict,
-            check_interval: int = 1
+        self,
+        target_leagues: dict,
+        check_interval: int = 1
     ) -> None:
         """
         Мониторинг данных лиг.
 
-        :param target_leagues: list
-        :param check_interval: int
+        :param target_leagues: Словарь с данными целевых лиг.
+        :param check_interval: Интервал проверки в секундах.
         """
         previous_hash = await self.get_container_hash()
+        unchanged_count = 0
+        max_unchanged_checks = 3600
+
         while True:
             await asyncio.sleep(check_interval)
             current_hash = await self.get_container_hash()
 
             if current_hash != previous_hash:
                 try:
-                    leagues_data = await self.extract_league_data(
-                        target_leagues
-                    )
+                    leagues_data = await self.extract_league_data(target_leagues)
                     previous_hash = current_hash
+                    unchanged_count = 0  # Сброс счетчика при изменении данных
                     if leagues_data:
                         await self.send_data(leagues_data)
                 except Exception:
-                    await self.send_to_logs(
-                        f'Ошибка: {traceback.format_exc()}'
-                    )
+                    await self.send_to_logs(f'Ошибка: {traceback.format_exc()}')
             else:
+                unchanged_count += 1
+
+            # Если данные не изменялись в течение max_unchanged_checks раз
+            if unchanged_count >= max_unchanged_checks:
                 await self.send_to_logs(
-                    "Данные не изменились."
+                    f"Данные не изменились более {max_unchanged_checks} раз. Перезапуск."
                 )
+                self.restart_required = True  # Устанавливаем флаг для перезапуска
+                break
 
     async def close(self):
         if self.driver:
@@ -793,17 +798,28 @@ class FetchAkty:
                     await self.redis_client.connect()
                 await self.change_zoom()
                 await self.init_async_components()
-                await self.authorization()
-                await self.main_page()
-                await self.aggregator_page()
+
+                # Начинаем с авторизации, если требуется перезапуск
+                if self.restart_required:
+                    self.restart_required = False  # Сбрасываем флаг
+                    await self.authorization()
+                    await self.main_page()
+                    await self.aggregator_page()
+                else:
+                    await self.authorization()
+                    await self.main_page()
+                    await self.aggregator_page()
+
                 await self.monitor_leagues(leagues)
-                break  # Успешное выполнение, выход из цикла
+                break
+
             except Exception as e:
                 if self.driver and self.driver.session_id:
                     self.driver.save_screenshot(
                         f'screenshot_akty_{attempt}.png')
                 await self.send_to_logs(
-                    f"Произошла ошибка: {str(e)}. Попытка {attempt + 1} из {max_retries}.")
+                    f"Произошла ошибка: {str(e)}. Попытка {attempt + 1} из {max_retries}."
+                )
                 await asyncio.sleep(10)
                 attempt += 1
                 if attempt >= max_retries:
@@ -811,9 +827,10 @@ class FetchAkty:
                         "Достигнуто максимальное количество попыток. Остановка.")
                     break
             finally:
-                await self.redis_client.close()
-                self.driver.quit()
-
+                if self.redis_client:
+                    await self.redis_client.close()
+                if self.driver:
+                    self.driver.quit()
 
 
 if __name__ == "__main__":
