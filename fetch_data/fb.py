@@ -208,7 +208,7 @@ class OddsFetcher:
                     data_akty = await self.redis_client.get_last_item(key)
                     if data_akty:
                         data_akty['site'] = 'OB'
-                        await self.send_to_logs(
+                    await self.send_to_logs(
                             f'Последний элекмент: {data_akty}, {type(data_akty)}')
                     data_rate.update({
                         'opponent_0': opponent_0,
