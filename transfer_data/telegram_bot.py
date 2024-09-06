@@ -2,13 +2,48 @@ import os
 from dotenv import load_dotenv
 from telegram import Bot
 from telegram.error import TelegramError
-from transfer_data.redis_client import RedisClient
 
 # Загрузка переменных окружения из .env файла
 load_dotenv()
 
 TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
 TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN')
+
+TG_CHAT_RBL = os.getenv('TG_CHAT_RBL')
+TG_CHAT_RBLW = os.getenv('TG_CHAT_RBLW')
+TG_CHAT_IPBL1 = os.getenv('TG_CHAT_IPBL1')
+TG_CHAT_IPBL2 = os.getenv('TG_CHAT_IPBL2')
+TG_CHAT_IPBLW = os.getenv('TG_CHAT_IPBLW')
+
+LEAGUES = {
+    'IPBL Pro Division': TG_CHAT_IPBL1,
+    'IPBL Pro Division Women': TG_CHAT_IPBLW,
+    'Rocket Basketball League': TG_CHAT_RBL,
+    'Rocket Basketball League Women': TG_CHAT_RBLW,
+}
+
+IPBL1_TEAMS = [
+    "kazan",
+    "saint petersburg",
+    "sochi",
+    "moscow",
+    "kuban",
+    "kamchatka",
+    "siberia",
+    "ural",
+    "vladivostok",
+    "novosibirsk",
+    "kaliningrad",
+    "samara",
+    "yenisei",
+    "oka",
+    "don",
+    "volga",
+    "surgut",
+    "barnaul",
+    "krasnodar",
+    "omsk",
+]
 
 # Инициализация бота
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
@@ -49,6 +84,7 @@ async def send_message_to_telegram(
     handicap_bet_1 = float(content.get('handicap_bet_1', '0'))
     opponent_0 = content.get('opponent_0', '')
     opponent_1 = content.get('opponent_1', '')
+    liga = content['liga']
     site = content['site']
     table = (
         f"<b>{opponent_0.upper()} vs {opponent_1.upper()}</b>\n"
@@ -73,5 +109,21 @@ async def send_message_to_telegram(
     try:
         # Отправка сообщения в чат с использованием моноширинного шрифта для таблицы
         await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=table, parse_mode='HTML')
+        if liga:
+            if liga == 'IPBL Pro Division':
+                if opponent_0 in IPBL1_TEAMS:
+                    await bot.send_message(
+                        chat_id=TG_CHAT_IPBL1,
+                        text=table,
+                        parse_mode='HTML'
+                    )
+                else:
+                    await bot.send_message(
+                        chat_id=TG_CHAT_IPBL2,
+                        text=table,
+                        parse_mode='HTML'
+                    )
+            else:
+                await bot.send_message(chat_id=LEAGUES[liga], text=table, parse_mode='HTML')
     except TelegramError as e:
         print(f"Ошибка при отправке сообщения: {e}")
