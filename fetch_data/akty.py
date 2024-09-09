@@ -572,17 +572,21 @@ class FetchAkty:
 
     async def click_element_by_text(self) -> None:
         try:
-            spoiler_button = await self.wait_for_element(By.CSS_SELECTOR,"div[class*='match-type']",timeout=30)
-            spoiler_button.click()
-            await asyncio.sleep(1)
-            spoiler_button.click()
-            await self.send_to_logs(
-                'Переключение видимости лиг произошло успешно'
-            )
+            spoiler_button = await self.wait_for_element(By.CSS_SELECTOR,
+                                                         "div[class*='match-type']",
+                                                         timeout=30)
+
+            # Проверяем текущее состояние (открыто или закрыто)
+            if 'expanded' not in spoiler_button.get_attribute('class'):
+                spoiler_button.click()
+                await asyncio.sleep(2)  # Увеличиваем задержку
+                await self.send_to_logs(
+                    'Переключение видимости лиг произошло успешно')
+            else:
+                await self.send_to_logs('Кнопка уже в нужном состоянии')
         except Exception as e:
-            await self.send_to_logs(
-                f'При переключении произошла ошибка: {e}'
-            )
+            await self.send_to_logs(f'При переключении произошла ошибка: {e}')
+
             await self.run()
 
     async def extract_league_data(
