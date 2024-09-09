@@ -108,7 +108,7 @@ async def send_message_to_telegram(
         )
     try:
         # Отправка сообщения в чат с использованием моноширинного шрифта для таблицы
-        await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=table, parse_mode='HTML')
+        #await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=table, parse_mode='HTML')
         if liga:
             if liga == 'IPBL Pro Division':
                 if opponent_0 in IPBL1_TEAMS:
