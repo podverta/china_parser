@@ -81,6 +81,7 @@ class FetchAkty:
         self.translator = Translator()
         self.translate_cash = load_translate_cash()
         self.restart_required = False
+        self.ended_games = {}
     async def save_games(self, data: dict, liga_name: str):
         """
         Сохраняет игры по отдельным ключам в Redis.
@@ -735,13 +736,86 @@ class FetchAkty:
 
                         previous_leagues_data[NAME_BOOKMAKER][
                                 league_name].append(game_info)
-
+        # Обновляем завершённые игры перед заменой previous_data
+        await self.update_ended_games(leagues_data, previous_leagues_data)
         self.previous_data = previous_leagues_data
         leagues_data[NAME_BOOKMAKER] = {
             k: v for k, v in leagues_data[NAME_BOOKMAKER].items() if v
         }
         if any(leagues_data[NAME_BOOKMAKER].values()):
             return leagues_data
+
+    async def update_ended_games(self, leagues_data: dict,
+                                 previous_leagues_data: dict) -> None:
+        """
+        Обновление словаря self.ended_games для отслеживания завершённых игр.
+
+        Если игра отсутствует в новом словаре leagues_data,
+        но присутствует в previous_leagues_data,
+        она добавляется в self.ended_games.
+        Если игра отсутствует в течение 2000 итераций,
+        то устанавливается флаг 'is_end_game' в True,
+        и игра удаляется из self.ended_games.
+
+        :param leagues_data: dict - Текущие данные игр, полученные с сайта.
+        :param previous_leagues_data: dict - Предыдущие данные игр.
+        """
+        for league, games in previous_leagues_data[NAME_BOOKMAKER].items():
+            for game_info in games:
+                opponent_0 = game_info['opponent_0']
+                opponent_1 = game_info['opponent_1']
+                unique_key = (league, opponent_0,
+                              opponent_1)
+                if league not in leagues_data[
+                    NAME_BOOKMAKER] or game_info not in \
+                        leagues_data[NAME_BOOKMAKER][league]:
+                    if unique_key not in self.ended_games:
+                        self.ended_games[unique_key] = {'info': game_info,
+                                                        'count': 0}
+                    else:
+                        self.ended_games[unique_key]['count'] += 1
+
+                        if self.ended_games[unique_key]['count'] >= 2000:
+                            leagues_data[NAME_BOOKMAKER][league][game_info][
+                                'is_end_game'] = True
+                            await self.send_to_logs(
+                                f"Игра окончательно завершена: \n"
+                                f" {leagues_data[NAME_BOOKMAKER][game_info]}"
+                            )
+                            await self.delete_games(
+                                leagues_data[NAME_BOOKMAKER][league][game_info],
+                                league
+                            )
+                            del self.ended_games[unique_key]
+                else:
+                    if unique_key in self.ended_games:
+                        del self.ended_games[unique_key]
+
+    async def delete_games(self, data: dict, liga_name: str):
+        """
+        Удаляет игры по отдельным ключам из Redis.
+
+        Args:
+            data (dict): Данные, содержащие информацию о ключах для удаления.
+            liga_name (str): Наименование лиги для удаления данных в Redis.
+        """
+        try:
+            opponent_0 = data.get('opponent_0', '')
+            opponent_1 = data.get('opponent_1', '')
+            key = (f"akty.com, {liga_name.lower()}, "
+                   f"{opponent_0.lower()}, {opponent_1.lower()}")
+            key_2 = (f"fb.com, {liga_name.lower()}, "
+                   f"{opponent_0.lower()}, {opponent_1.lower()}")
+            if not self.debug:
+                # Удаляем данные из Redis по ключу
+                for key in [key, key_2]:
+                    await self.redis_client.delete_data(key)
+            # Логируем успешное удаление
+            await self.send_to_logs(
+                f"Данные для ключа '{key}' успешно удалены.")
+
+        except Exception as e:
+            await self.send_to_logs(f'Ошибка при удалении данных: {str(e)}')
 
     async def monitor_leagues(
         self,
@@ -766,7 +840,7 @@ class FetchAkty:
                 try:
                     leagues_data = await self.extract_league_data(target_leagues)
                     previous_hash = current_hash
-                    unchanged_count = 0  # Сброс счетчика при изменении данных
+                    unchanged_count = 0
                     if leagues_data:
                         await self.send_data(leagues_data)
                 except Exception:
