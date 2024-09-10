@@ -584,30 +584,25 @@ class FetchAkty:
             if 'style' in card.attrs:
                 card_style = card['style']
 
+                # Если есть скрытые элементы (высота 37px), нажимаем кнопку для изменения состояния
                 if re.search(r'height:\s*37px;', card_style):
-                    # Если есть скрытые элементы, находим кнопку для изменения состояния
                     spoiler_button = await self.wait_for_element(
                         By.CSS_SELECTOR,
                         "div[class*='match-type']",
                         timeout=30)
                     current_style = spoiler_button.get_attribute('style')
 
-                    # Проверяем текущий стиль кнопки и нажимаем, если необходимо
+                    # Нажимаем на кнопку, если она в состоянии скрытия элементов
                     if re.search(r'height:\s*37px;', current_style):
                         spoiler_button.click()
                         await asyncio.sleep(5)
                         await self.send_to_logs(
                             'Переключение видимости лиг произошло успешно')
-                    elif re.search(r'height:\s*32px;', current_style):
-                        pass
-                    else:
-                        await self.send_to_logs(
-                            'Не удалось определить текущее состояние кнопки')
-                else:
-                    await self.send_to_logs('Все элементы уже раскрыты')
-            else:
-                await self.send_to_logs(
-                    'Атрибут "style" не найден у элемента card')
+
+            # Если элементы уже раскрыты или отсутствует стиль, ничего не делаем
+        except Exception as e:
+            await self.send_to_logs(f'При переключении произошла ошибка: {e}')
+            await self.run()
 
         except Exception as e:
             await self.send_to_logs(f'При переключении произошла ошибка: {e}')
