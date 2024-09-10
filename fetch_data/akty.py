@@ -580,7 +580,7 @@ class FetchAkty:
             # Проверяем текущее состояние (открыто или закрыто)
             if 'expanded' not in spoiler_button.get_attribute('class'):
                 spoiler_button.click()
-                await asyncio.sleep(2)  # Увеличиваем задержку
+                await asyncio.sleep(5)
                 await self.send_to_logs(
                     'Переключение видимости лиг произошло успешно')
             else:
