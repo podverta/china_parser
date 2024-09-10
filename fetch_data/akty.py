@@ -676,7 +676,7 @@ class FetchAkty:
                         handicap_bet_div = bet_divs[1].find_all('span',
                                                                 class_='highlight-odds')
                         handicap_point_divs = bet_divs[1].find_all('div',
-                                                                   class_='handicap-value-text handicap-value-ranks')
+                                                                   class_='handicap-value-text')
 
                         opponent_0_handicap_bet = handicap_bet_div[
                             0].get_text() if len(handicap_bet_div) > 0 else ""
@@ -692,7 +692,7 @@ class FetchAkty:
                         total_bet_div = bet_divs[2].find_all('span',
                                                              class_='highlight-odds')
                         total_point_divs = bet_divs[2].find_all('div',
-                                                                class_='handicap-value-text handicap-value-ranks')
+                                                                class_='handicap-value-text')
 
                         opponent_0_total_bet = total_bet_div[
                             0].get_text() if len(total_bet_div) > 0 else ""
