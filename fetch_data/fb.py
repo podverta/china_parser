@@ -228,29 +228,40 @@ class OddsFetcher:
 
     async def delete_games(self, data: dict, liga_name: str):
         """
-        Удаляет игры по отдельным ключам из Redis.
+        Удаляет игры по ключам из Redis.
 
         Args:
-            data (dict): Данные, содержащие информацию о ключах для удаления.
+            data (dict): Данные с информацией о ключах для удаления.
             liga_name (str): Наименование лиги для удаления данных в Redis.
         """
         try:
-            opponent_0 = data.get('opponent_0', '')
-            opponent_1 = data.get('opponent_1', '')
-            key = (f"akty.com, {liga_name.lower()}, "
-                   f"{opponent_0.lower()}, {opponent_1.lower()}")
-            key_2 = (f"fb.com, {liga_name.lower()}, "
-                   f"{opponent_0.lower()}, {opponent_1.lower()}")
+            # Получаем оппонентов и преобразуем их к нижнему регистру
+            opponent_0 = data.get('opponent_0', '').lower()
+            opponent_1 = data.get('opponent_1', '').lower()
+            liga_name_lower = liga_name.lower()
+
+            # Базовая часть ключей
+            base_key = f"{liga_name_lower}, {opponent_0}, {opponent_1}"
+
+            # Генерируем ключи с использованием замены части строки
+            keys = [
+                f"akty.com, {base_key}",
+                f"akty.com_all_data, {base_key}",
+                f"fb.com, {base_key}",
+                f"fb.com_all_data, {base_key}"
+            ]
+
             if not self.debug:
-                # Удаляем данные из Redis по ключу
-                for key in [key, key_2]:
+                # Удаляем данные из Redis по ключам
+                for key in keys:
                     await self.redis_client.delete_data(key)
+
             # Логируем успешное удаление
             await self.send_to_logs(
-                f"Данные для ключа '{key}' успешно удалены.")
+                f"Данные для ключей '{', '.join(keys)}' успешно удалены.")
 
         except Exception as e:
-            await self.send_to_logs(f'Ошибка при удалении данных: {str(e)}')
+            await self.send_to_logs(f'Ошибка при удалении данных: {e}')
 
     async def send_data(
             self,
