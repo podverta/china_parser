@@ -133,19 +133,20 @@ class FetchAkty:
                 key_fb = (f"fb.com_all_data, {liga_name.lower()}, "
                        f"{opponent_0.lower()}, {opponent_1.lower()}")
                 # Получаем данные из Redis
-                data_fb = await self.redis_client.get_last_item(key_fb)
-                if data_fb:
-                    data_fb['site'] = 'FB'
-                data_rate.update({
-                    'opponent_0': opponent_0,
-                    'opponent_1': opponent_1,
-                    'liga': liga_name,
-                    'site': 'OB'
-                })
-                await send_message_to_telegram(
-                    data_rate,
-                    data_fb
-                )
+                if not self.debug:
+                    data_fb = await self.redis_client.get_last_item(key_fb)
+                    if data_fb:
+                        data_fb['site'] = 'FB'
+                    data_rate.update({
+                        'opponent_0': opponent_0,
+                        'opponent_1': opponent_1,
+                        'liga': liga_name,
+                        'site': 'OB'
+                    })
+                    await send_message_to_telegram(
+                        data_rate,
+                        data_fb
+                    )
 
         except Exception as e:
             await self.send_to_logs(f'Ошибка при сохранении данных: {str(e)}')
@@ -572,22 +573,29 @@ class FetchAkty:
         return hashlib.md5(str(soup).encode('utf-8')).hexdigest()
 
     async def click_element_by_text(self) -> None:
+        """
+        Нажимает на элемент для изменения его видимости,
+        если текущий элемент не находится в нужном состоянии.
+        """
         try:
             spoiler_button = await self.wait_for_element(By.CSS_SELECTOR,
                                                          "div[class*='match-type']",
                                                          timeout=30)
+            # Проверяем текущее состояние элемента
+            current_style = spoiler_button.get_attribute('style')
 
-            # Проверяем текущее состояние (открыто или закрыто)
-            if 'expanded' not in spoiler_button.get_attribute('class'):
+            if re.search(r'height:\s*37px;', current_style):
                 spoiler_button.click()
                 await asyncio.sleep(5)
                 await self.send_to_logs(
                     'Переключение видимости лиг произошло успешно')
+            elif re.search(r'height:\s*32px;', current_style):
+                await self.send_to_logs('Все элементы уже раскрыты')
             else:
-                await self.send_to_logs('Кнопка уже в нужном состоянии')
+                await self.send_to_logs(
+                    'Не удалось определить текущее состояние кнопки')
         except Exception as e:
             await self.send_to_logs(f'При переключении произошла ошибка: {e}')
-
             await self.run()
 
     async def extract_league_data(
