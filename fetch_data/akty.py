@@ -572,28 +572,43 @@ class FetchAkty:
             return ''
         return hashlib.md5(str(soup).encode('utf-8')).hexdigest()
 
-    async def click_element_by_text(self) -> None:
+    async def click_element_by_text(self, card) -> None:
         """
         Нажимает на элемент для изменения его видимости,
         если текущий элемент не находится в нужном состоянии.
+
+        :param card: HTML-элемент, содержащий информацию о лиге.
         """
         try:
-            spoiler_button = await self.wait_for_element(By.CSS_SELECTOR,
-                                                         "div[class*='match-type']",
-                                                         timeout=30)
-            # Проверяем текущее состояние элемента
-            current_style = spoiler_button.get_attribute('style')
+            # Проверяем стиль элемента card для определения текущего состояния
+            if 'style' in card.attrs:
+                card_style = card['style']
 
-            if re.search(r'height:\s*37px;', current_style):
-                spoiler_button.click()
-                await asyncio.sleep(5)
-                await self.send_to_logs(
-                    'Переключение видимости лиг произошло успешно')
-            elif re.search(r'height:\s*32px;', current_style):
-                await self.send_to_logs('Все элементы уже раскрыты')
+                if re.search(r'height:\s*37px;', card_style):
+                    # Если есть скрытые элементы, находим кнопку для изменения состояния
+                    spoiler_button = await self.wait_for_element(
+                        By.CSS_SELECTOR,
+                        "div[class*='match-type']",
+                        timeout=30)
+                    current_style = spoiler_button.get_attribute('style')
+
+                    # Проверяем текущий стиль кнопки и нажимаем, если необходимо
+                    if re.search(r'height:\s*37px;', current_style):
+                        spoiler_button.click()
+                        await asyncio.sleep(5)
+                        await self.send_to_logs(
+                            'Переключение видимости лиг произошло успешно')
+                    elif re.search(r'height:\s*32px;', current_style):
+                        pass
+                    else:
+                        await self.send_to_logs(
+                            'Не удалось определить текущее состояние кнопки')
+                else:
+                    await self.send_to_logs('Все элементы уже раскрыты')
             else:
                 await self.send_to_logs(
-                    'Не удалось определить текущее состояние кнопки')
+                    'Атрибут "style" не найден у элемента card')
+
         except Exception as e:
             await self.send_to_logs(f'При переключении произошла ошибка: {e}')
             await self.run()
@@ -630,9 +645,7 @@ class FetchAkty:
             if div_name_liga:
                 league_name = div_name_liga.get_text()
                 if league_name in target_leagues.keys():
-                    if 'style' in card.attrs and re.search(r'height:\s*37px;',
-                                                           card['style']):
-                        await self.click_element_by_text()
+                    await self.click_element_by_text(card)
             elif league_name and league_name in target_leagues.keys():
                 league_name = target_leagues[league_name]
                 list_mid_elements = card.find_all('div',
