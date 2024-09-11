@@ -256,10 +256,6 @@ class OddsFetcher:
                 for key in keys:
                     await self.redis_client.delete_data(key)
 
-            # Логируем успешное удаление
-            await self.send_to_logs(
-                f"Данные для ключей '{', '.join(keys)}' успешно удалены.")
-
         except Exception as e:
             await self.send_to_logs(f'Ошибка при удалении данных: {e}')
 
@@ -671,7 +667,6 @@ class OddsFetcher:
                 if league:
                     active_matches["fb.com"].setdefault(league, []).append(game)
                     await self.delete_games(game, league)
-                logger.error(f"Игра окончательно завершена: {game}")
                 del self.ended_games[game_key]
 
     async def _mark_game_as_ended(self, site: str, league: str,
