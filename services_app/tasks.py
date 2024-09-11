@@ -1,9 +1,7 @@
-import os
 import asyncio
+import subprocess
 import time
 import urllib3
-from dotenv import load_dotenv
-from redis import Redis
 from celery import current_app
 from services_app.celery_app import celery_app, logger, redis_client
 from fetch_data.parsers import parsers
@@ -140,12 +138,20 @@ def parse_some_data(self, parser_name, *args, **kwargs):
 def check_and_start_parsers(is_first_run: bool = False):
     """
     Проверяет активные задачи парсеров и запускает их в нужном порядке.
+
+    Если это первый запуск (`is_first_run=True`), выполняется очистка всех данных в Redis.
+
+    Args:
+        is_first_run (bool): Флаг, указывающий, является ли это первым запуском.
     """
     logger.info("Запуск проверки активных задач парсеров.")
 
     if is_first_run:
-        logger.info("Первый запуск, удаление всех celery-task-meta ключей из Redis.")
+        logger.info(
+            "Первый запуск, удаление всех celery-task-meta ключей из Redis.")
         delete_celery_task_meta_keys()
+        logger.info("Очистка всех данных в Redis.")
+        subprocess.run(['redis-cli', 'FLUSHALL'], check=True)
 
     inspect = current_app.control.inspect()
     active_tasks = inspect.active()  # Получаем активные задачи
@@ -154,39 +160,52 @@ def check_and_start_parsers(is_first_run: bool = False):
     fb_tasks = []
     for worker, tasks in active_tasks.items():
         for task in tasks:
-            if task['name'] == 'services_app.tasks.parse_some_data' and task['args'][0] == 'FB':
+            if task['name'] == 'services_app.tasks.parse_some_data' and \
+                    task['args'][0] == 'FB':
                 fb_tasks.append(task)
 
-    if len(fb_tasks) > 0:
+    if fb_tasks:
         logger.info("Активная задача FB уже работает.")
     else:
         logger.info("Запуск новой задачи для FB через 30 секунд.")
         time.sleep(30)
         # Перед запуском задачи, проверяем снова, чтобы убедиться, что инстанс не был запущен в промежутке
         active_tasks = inspect.active()  # Обновляем список активных задач
-        fb_tasks = [task for worker, tasks in active_tasks.items() for task in tasks if task['name'] == 'services_app.tasks.parse_some_data' and task['args'][0] == 'FB']
-        if len(fb_tasks) == 0:
-            parse_some_data.apply_async(args=('FB',), kwargs={'is_first_run': is_first_run})
+        fb_tasks = [task for worker, tasks in active_tasks.items() for task in
+                    tasks if
+                    task['name'] == 'services_app.tasks.parse_some_data' and
+                    task['args'][0] == 'FB']
+        if not fb_tasks:
+            parse_some_data.apply_async(args=('FB',),
+                                        kwargs={'is_first_run': is_first_run})
         else:
-            logger.info("Инстанс FB был запущен другим процессом, пропускаем запуск.")
+            logger.info(
+                "Инстанс FB был запущен другим процессом, пропускаем запуск.")
 
     # Проверяем и запускаем FetchAkty только после FB
     fetch_akty_tasks = []
     for worker, tasks in active_tasks.items():
         for task in tasks:
-            if task['name'] == 'services_app.tasks.parse_some_data' and task['args'][0] == 'FetchAkty':
+            if task['name'] == 'services_app.tasks.parse_some_data' and \
+                    task['args'][0] == 'FetchAkty':
                 fetch_akty_tasks.append(task)
 
-    if len(fetch_akty_tasks) > 0:
+    if fetch_akty_tasks:
         logger.info("Активная задача FetchAkty уже работает.")
     else:
         # Ждем 1,5 минуты перед запуском FetchAkty
-        logger.info("Запуск новой задачи для FetchAkty через 1,5 минуты после запуска FB.")
+        logger.info(
+            "Запуск новой задачи для FetchAkty через 1,5 минуты после запуска FB.")
         time.sleep(90)
         # Перед запуском задачи, проверяем снова, чтобы убедиться, что инстанс не был запущен в промежутке
         active_tasks = inspect.active()  # Обновляем список активных задач
-        fetch_akty_tasks = [task for worker, tasks in active_tasks.items() for task in tasks if task['name'] == 'services_app.tasks.parse_some_data' and task['args'][0] == 'FetchAkty']
-        if len(fetch_akty_tasks) == 0:
-            parse_some_data.apply_async(args=('FetchAkty',), kwargs={'is_first_run': is_first_run})
+        fetch_akty_tasks = [task for worker, tasks in active_tasks.items() for
+                            task in tasks if task[
+                                'name'] == 'services_app.tasks.parse_some_data' and
+                            task['args'][0] == 'FetchAkty']
+        if not fetch_akty_tasks:
+            parse_some_data.apply_async(args=('FetchAkty',),
+                                        kwargs={'is_first_run': is_first_run})
         else:
-            logger.info("Инстанс FetchAkty был запущен другим процессом, пропускаем запуск.")
+            logger.info(
+                "Инстанс FetchAkty был запущен другим процессом, пропускаем запуск.")
