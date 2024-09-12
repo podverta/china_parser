@@ -652,14 +652,26 @@ class OddsFetcher:
                         "Превышено максимальное количество попыток восстановления соединения. Перезапуск процесса.")
                     await self.restart_fetcher()
                 else:
-                    await asyncio.sleep(10)
+                    await asyncio.sleep(10)  # Пауза перед повторной попыткой
+            else:
+                # Если другая ошибка, логируем и перезапускаем весь процесс
+                await self.send_to_logs(
+                    f"Произошла ошибка: {str(e)}. Перезапуск.")
+                await self.restart_fetcher()
 
     async def restart_fetcher(self):
         """
         Перезапускает процесс сбора данных путем повторного запуска методов.
         """
-        self.driver_fb.quit()
-        await self.init_async_components()
+        # Закрываем WebDriver, если он открыт
+        if self.driver_fb:
+            self.driver_fb.quit()
+
+        # Инициализируем драйвер заново и сбрасываем счетчик ошибок
+        self.driver_fb = await self.get_driver(headless=HEADLESS)
+        self.connection_error_count = 0  # Сброс счетчика ошибок
+
+        # Повторно запускаем процесс
         await self.run(leagues=LEAGUES)
 
     async def check_finished_games(self, current_data: Dict[str, Any],
@@ -734,10 +746,6 @@ class OddsFetcher:
     async def run(self, *args, **kwargs):
         """
         Основной метод для запуска парсера с перезапуском при ошибках.
-
-        Args:
-            *args: Позиционные аргументы.
-            **kwargs: Именованные аргументы.
         """
         leagues = kwargs.get('leagues', LEAGUES)
         attempt = 0
@@ -748,11 +756,14 @@ class OddsFetcher:
                 if not self.debug:
                     self.redis_client = RedisClient()
                     await self.redis_client.connect()
+
                 await self.init_async_components()
                 await self.get_page()
                 await self.main_page()
-                await self.collect_odds_data(leagues)
-                await asyncio.sleep(1)  # Пауза между циклами сбора данных
+
+                while True:
+                    await self.collect_odds_data(leagues)
+                    await asyncio.sleep(1)  # Пауза между циклами сбора данных
             except Exception as e:
                 if self.driver_fb and self.driver_fb.session_id:
                     self.driver_fb.save_screenshot(
@@ -760,9 +771,11 @@ class OddsFetcher:
                     )
                 await self.send_to_logs(
                     f"Произошла ошибка: {str(e)}. "
-                    f"Попытка {attempt + 1} из {max_retries}.")
+                    f"Попытка {attempt + 1} из {max_retries}."
+                )
                 attempt += 1
                 await asyncio.sleep(10)
+
                 if attempt >= max_retries:
                     await self.send_to_logs(
                         "Достигнуто максимальное количество попыток. Остановка.")
@@ -770,7 +783,6 @@ class OddsFetcher:
             finally:
                 if self.redis_client is not None:
                     await self.redis_client.close()
-
                 if self.driver_fb:
                     self.driver_fb.quit()
 
