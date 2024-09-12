@@ -28,7 +28,7 @@ logger = setup_logger('celery', 'celery.log')
 celery_app.conf.beat_schedule = {
     'check_and_start_parsers': {
         'task': 'services_app.tasks.check_and_start_parsers',
-        'schedule': crontab(minute='*/40'),
+        'schedule': crontab(minute='*/20'),
     },
     'restart_all_parsers': {
         'task': 'services_app.tasks.check_and_start_parsers',

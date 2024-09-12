@@ -73,6 +73,8 @@ class OddsFetcher:
         self.previous_data = {}
         self.translate_cash = load_translate_cash()
         self.ended_games = {}
+        self.connection_error_count = 0
+        self.max_connection_errors = 5
 
     async def get_driver(
             self,
@@ -218,10 +220,11 @@ class OddsFetcher:
                     'liga': liga_name,
                     'site': 'FB'
                 })
-                await send_message_to_telegram(
-                    data_rate,
-                    data_akty
-                )
+                if not self.debug:
+                    await send_message_to_telegram(
+                        data_rate,
+                        data_akty
+                    )
 
         except Exception as e:
             await self.send_to_logs(f'Ошибка при сохранении данных: {str(e)}')
@@ -635,8 +638,29 @@ class OddsFetcher:
             # Отправляем данные, только если они изменились
             if any(active_matches["fb.com"].values()):
                 await self.send_data(active_matches)
+            self.connection_error_count = 0
         except Exception as e:
             logger.error(f"Error in collect_odds_data: {str(e)}")
+            if "Connection refused" in str(
+                    e) or "Max retries exceeded with url" in str(e):
+                self.connection_error_count += 1  # Увеличиваем счетчик
+                await self.send_to_logs(
+                    f"Ошибка подключения: {str(e)}. Попытка {self.connection_error_count} из {self.max_connection_errors}.")
+
+                if self.connection_error_count >= self.max_connection_errors:
+                    await self.send_to_logs(
+                        "Превышено максимальное количество попыток восстановления соединения. Перезапуск процесса.")
+                    await self.restart_fetcher()
+                else:
+                    await asyncio.sleep(10)
+
+    async def restart_fetcher(self):
+        """
+        Перезапускает процесс сбора данных путем повторного запуска методов.
+        """
+        self.driver_fb.quit()
+        await self.init_async_components()
+        await self.run(leagues=LEAGUES)
 
     async def check_finished_games(self, current_data: Dict[str, Any],
                                    active_matches: Dict[str, Any]) -> None:
@@ -727,9 +751,8 @@ class OddsFetcher:
                 await self.init_async_components()
                 await self.get_page()
                 await self.main_page()
-                while True:
-                    await self.collect_odds_data(leagues)
-                    await asyncio.sleep(1)  # Пауза между циклами сбора данных
+                await self.collect_odds_data(leagues)
+                await asyncio.sleep(1)  # Пауза между циклами сбора данных
             except Exception as e:
                 if self.driver_fb and self.driver_fb.session_id:
                     self.driver_fb.save_screenshot(
@@ -745,8 +768,11 @@ class OddsFetcher:
                         "Достигнуто максимальное количество попыток. Остановка.")
                     break
             finally:
-                self.driver_fb.quit()
-                await self.redis_client.close()
+                if self.redis_client is not None:
+                    await self.redis_client.close()
+
+                if self.driver_fb:
+                    self.driver_fb.quit()
 
 if __name__ == "__main__":
     LOCAL_DEBUG = 1
