@@ -452,11 +452,11 @@ class FetchAkty:
                     )
                     self.action.move_to_element(span_element).perform()
                     await asyncio.sleep(2)
-
                     # Проверка кликабельности элемента
+
                     h4_element = await self.wait_for_element(
                         By.XPATH,
-                        "//img[@src='https://senbackkg.m42i79a.com/main-consumer-web/assets-oss/ak/images/header/ty-hq.fcfac2c0d9d469709a1ede2e376bf482.webp?x-oss-process=image/resize,w_210,h_210/quality,Q_100/sharpen,100/format,webp']"
+                        "//img[@src='https://senbackkg.m42i79a.com/main-consumer-web/assets-oss/ak/images/header/ty-hq.862daf053a4b08ea6650a4e85ece1711.webp?x-oss-process=image/resize,w_210,h_210/quality,Q_100/sharpen,100/format,webp']"
                     )
 
                     if h4_element.is_displayed() and h4_element.is_enabled():
