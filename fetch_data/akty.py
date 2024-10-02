@@ -385,6 +385,8 @@ class FetchAkty:
                                                "input[placeholder='密码']")
         password_input.clear()
         password_input.send_keys(PASSWORD)
+        await asyncio.sleep(3)
+        password_input.send_keys(Keys.ENTER)
         password_input.send_keys(Keys.ENTER)
         await self.send_to_logs('Авторизация успешно пройдена')
 
