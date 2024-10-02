@@ -280,7 +280,7 @@ class FetchAkty:
             self,
             by: By,
             value: str,
-            timeout: int = 10
+            timeout: int = 30
     ) -> WebElement:
         """
         Ожидает загрузки элемента на странице по заданным критериям.
@@ -503,7 +503,7 @@ class FetchAkty:
         self.driver.switch_to.frame(iframe_element)
         basketball_element = await self.wait_for_element(By.CSS_SELECTOR,
                                                    "span[alt='篮球']",
-                                                   timeout=15)
+                                                   timeout=35)
         if basketball_element:
             basketball_element.click()
         else:
