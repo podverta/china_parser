@@ -632,7 +632,7 @@ class FetchAkty:
         cards = scroll_content.find_all(
             'div',
             class_=re.compile(
-                'list-card-wrap 1 v-scroll-item 1 relative-position'),
+                'list-card-wrap v-scroll-item relative-position'),
             recursive=False
         )
 
@@ -647,7 +647,7 @@ class FetchAkty:
             elif league_name and league_name in target_leagues.keys():
                 league_name = target_leagues[league_name]
                 list_mid_elements = card.find_all('div',
-                                                  id='list-mid-undefined')
+                                                  class_='c-match-item')
                 for list_mid_element in list_mid_elements:
                     opponent_0 = list_mid_element.find('div',
                                                        class_='row-item team-item')
@@ -682,12 +682,12 @@ class FetchAkty:
                                                                    class_='handicap-value-text')
 
                         opponent_0_handicap_bet = handicap_bet_div[
-                            0].get_text() if len(handicap_bet_div) > 0 else ""
+                            0].get_text().replace("EU ", "") if len(handicap_bet_div) > 0 else ""
                         opponent_0_handicap_point = handicap_point_divs[
                             0].get_text().strip() if len(
                             handicap_point_divs) > 0 else ""
                         opponent_1_handicap_bet = handicap_bet_div[
-                            1].get_text() if len(handicap_bet_div) > 1 else ""
+                            1].get_text().replace("EU ", "") if len(handicap_bet_div) > 1 else ""
                         opponent_1_handicap_point = handicap_point_divs[
                             1].get_text().strip() if len(
                             handicap_point_divs) > 1 else ""
@@ -698,12 +698,12 @@ class FetchAkty:
                                                                 class_='handicap-value-text')
 
                         opponent_0_total_bet = total_bet_div[
-                            0].get_text() if len(total_bet_div) > 0 else ""
+                            0].get_text().replace("EU ", "") if len(total_bet_div) > 0 else ""
                         opponent_0_total_point = total_point_divs[
                             0].get_text().strip() if len(
                             total_point_divs) > 0 else ""
                         opponent_1_total_bet = total_bet_div[
-                            1].get_text() if len(total_bet_div) > 1 else ""
+                            1].get_text().replace("EU ", "") if len(total_bet_div) > 1 else ""
 
                         process_time_span = list_mid_element.find('span',
                                                                   class_='timer-layout2')
