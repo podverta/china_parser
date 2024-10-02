@@ -439,7 +439,7 @@ class FetchAkty:
 
         for attempt in range(max_retries):
             try:
-                await asyncio.sleep(5)
+                await asyncio.sleep(15)
                 ul_element = await self.wait_for_element(
                     By.CLASS_NAME,
                     "header__venue__3IZlT",
@@ -501,9 +501,10 @@ class FetchAkty:
         )
         await asyncio.sleep(20)
         self.driver.switch_to.frame(iframe_element)
-        basketball_element = await self.wait_for_element(By.CSS_SELECTOR,
-                                                   "span[alt='篮球']",
-                                                   timeout=35)
+        basketball_element = await self.wait_for_element(
+            By.XPATH, '//span[@class="menu-text" and text()="篮球"]',
+            timeout=60
+        )
         if basketball_element:
             basketball_element.click()
         else:
