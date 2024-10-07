@@ -158,8 +158,3 @@ async def send_message_to_telegram(
             text=table,
             parse_mode='HTML'
         )
-    await bot.send_message(
-        chat_id=TELEGRAM_CHAT_ID,
-        text=table,
-        parse_mode='HTML'
-    )
