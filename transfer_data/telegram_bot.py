@@ -15,6 +15,9 @@ TG_CHAT_IPBL1 = os.getenv('TG_CHAT_IPBL1')
 TG_CHAT_IPBL2 = os.getenv('TG_CHAT_IPBL2')
 TG_CHAT_IPBLW = os.getenv('TG_CHAT_IPBLW')
 
+TRIGGER_TEAM_0 = False
+TRIGGER_TEAM_1 = True
+
 LEAGUES = {
     'IPBL Pro Division': TG_CHAT_IPBL1,
     'IPBL Pro Division Women': TG_CHAT_IPBLW,
@@ -49,18 +52,34 @@ IPBL1_TEAMS = [
 bot = Bot(token=TELEGRAM_BOT_TOKEN)
 
 
-def get_emoji_for_bet(bet: float) -> str:
+def change_trigger_team(team_name: str) -> None:
+    """
+    Меняет глобальные триггеры для команд в зависимости от названия команды.
+
+    :param team_name: Название команды ("TEAM_0" или "TEAM_1")
+    """
+    global TRIGGER_TEAM_0, TRIGGER_TEAM_1
+    if team_name == "TEAM_0":
+        TRIGGER_TEAM_0 = True
+    elif team_name == "TEAM_1":
+        TRIGGER_TEAM_1 = True
+
+def get_emoji_for_bet(bet: float, team_name: str = "") -> str:
     """
     Возвращает соответствующий эмодзи для коэффициента.
 
     :param bet: Коэффициент ставки
     :return: Строка с эмодзи
     """
+
     if 0 < bet <= 1.59:
+        change_trigger_team(team_name)
         return "🟣"
     elif 1.60 <= bet <= 1.63:
+        change_trigger_team(team_name)
         return "🔴"
     elif 1.64 <= bet <= 1.68:
+        change_trigger_team(team_name)
         return "🟠"
     elif 1.69 <= bet <= 1.73:
         return "🟡"
@@ -78,6 +97,9 @@ async def send_message_to_telegram(
     :param content_2: Словарь с данными другого сайта, которые будут
     отправлены в виде таблицы
     """
+    global TRIGGER_TEAM_0, TRIGGER_TEAM_1
+    TRIGGER_TEAM_0 = False
+    TRIGGER_TEAM_1 = False
     total_bet_0 = float(content.get('total_bet_0', '0'))
     total_bet_1 = float(content.get('total_bet_1', '0'))
     handicap_bet_0 = float(content.get('handicap_bet_0', '0'))
@@ -106,9 +128,10 @@ async def send_message_to_telegram(
             f"Total: {content['total_point']}|{site_2_total_bet_0} {get_emoji_for_bet(site_2_total_bet_0)}|{site_2_total_bet_1} {get_emoji_for_bet(site_2_total_bet_1)}\n"
             f"Handi: {content['handicap_point_0']}|{site_2_handicap_bet_0} {get_emoji_for_bet(site_2_handicap_bet_0)}|{content['handicap_point_1']}|{site_2_handicap_bet_1} {get_emoji_for_bet(site_2_handicap_bet_1)}\n"
         )
+
     try:
         # Отправка сообщения в чат с использованием моноширинного шрифта для таблицы
-        #await bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=table, parse_mode='HTML')
+
         if liga:
             if liga == 'IPBL Pro Division':
                 if opponent_0 in IPBL1_TEAMS:
@@ -125,5 +148,14 @@ async def send_message_to_telegram(
                     )
             else:
                 await bot.send_message(chat_id=LEAGUES[liga], text=table, parse_mode='HTML')
+
     except TelegramError as e:
         print(f"Ошибка при отправке сообщения: {e}")
+
+    if TRIGGER_TEAM_0 and TRIGGER_TEAM_1:
+        table += "\n‼️‼️‼️<b>ALARM</b>‼️‼️‼️\n"
+        await bot.send_message(
+            chat_id=TELEGRAM_CHAT_ID,
+            text=table,
+            parse_mode='HTML'
+        )
