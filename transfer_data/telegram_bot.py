@@ -150,7 +150,11 @@ async def send_message_to_telegram(
 
     except TelegramError as e:
         print(f"Ошибка при отправке сообщения: {e}")
-
+    await bot.send_message(
+        chat_id=TELEGRAM_CHAT_ID,
+        text=f'Проверка переменных TRIGGER_TEAM_0 - {TRIGGER_TEAM_0} и TRIGGER_TEAM_1 - {TRIGGER_TEAM_1}',
+        parse_mode='HTML'
+    )
     if TRIGGER_TEAM_0 and TRIGGER_TEAM_1:
         table += "\n‼️‼️‼️<b>ALARM</b>‼️‼️‼️\n"
         await bot.send_message(
