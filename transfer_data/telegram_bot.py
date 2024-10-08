@@ -64,11 +64,11 @@ def get_emoji_for_bet(
 
     if 0 < bet <= 1.59:
         return "🟣", True
-    elif 1.60 <= 1.63:
+    elif 1.60 <= bet <= 1.63:
         return "🔴", True
-    elif 1.64 <= 1.68:
+    elif 1.64 <= bet <= 1.68:
         return "🟠", True
-    elif 1.69 <= 1.73:
+    elif 1.69 <= bet <= 1.73:
         return "🟡", False
     else:
         return "", False
